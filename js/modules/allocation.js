@@ -89,30 +89,27 @@ YC.allocation = (() => {
         let totalDividends = 0;
         let totalMarketValue = 0;
 
+        const yieldFallbacks = {
+            '0050.TW': 0.035, '0056.TW': 0.075, '00878.TW': 0.062, '00919.TW': 0.10,
+            '00929.TW': 0.08, '00713.TW': 0.065, '00924.TW': 0.06, '00881.TW': 0.04,
+            '2330.TW': 0.02, '2317.TW': 0.05, '1101.TW': 0.04, '2881.TW': 0.045
+        };
+
         for (const h of holdings) {
-            const mkt = YC.state.getMarketData(h.symbol);
-            if (!mkt) continue;
-            const shares = h.shares || 0;
-            const price = mkt.price || h.costPrice || 0;
-            const mv = price * shares;
+            const mv = h.marketValue || 0;
+            if (mv <= 0) continue;
             
-            const yieldFallbacks = {
-                '0050.TW': 0.035, '0056.TW': 0.075, '00878.TW': 0.062, '00919.TW': 0.10,
-                '00929.TW': 0.08, '00713.TW': 0.065, '00924.TW': 0.06, '00881.TW': 0.04,
-                '2330.TW': 0.02, '2317.TW': 0.05, '1101.TW': 0.04, '2881.TW': 0.045
-            };
+            const mkt = YC.state.getMarketData(h.symbol) || {};
             
             // divYield from Yahoo is typically a decimal (e.g. 0.045 for 4.5%)
             let yieldVal = mkt.divYield || 0;
             if (yieldVal === 0 && yieldFallbacks[h.symbol]) {
                 yieldVal = yieldFallbacks[h.symbol];
             }
-            const annualDiv = mv * yieldVal;
             
-            totalDividends += annualDiv;
+            totalDividends += (mv * yieldVal);
             totalMarketValue += mv;
         }
-
 
         const avgYield = totalMarketValue > 0 ? (totalDividends / totalMarketValue) : 0;
         
@@ -172,20 +169,22 @@ YC.allocation = (() => {
         let totalEquity = 0;
         
         for (const h of holdings) {
-            const mkt = YC.state.getMarketData(h.symbol);
-            if (!mkt) continue;
-            const price = mkt.price || h.costPrice || 0;
-            const mv = price * (h.shares || 0);
+            const mv = h.marketValue || 0;
+            if (mv <= 0) continue;
 
             totalEquity += mv;
             
             let ratio = 0;
-            if (YC.state.EXPENSE_RATIOS && YC.state.EXPENSE_RATIOS[h.symbol]) {
-                ratio = YC.state.EXPENSE_RATIOS[h.symbol];
-            } else if (h.type === 'usetf') {
+            const symbol = h.symbol || '';
+            if (YC.state.EXPENSE_RATIOS && YC.state.EXPENSE_RATIOS[symbol]) {
+                ratio = YC.state.EXPENSE_RATIOS[symbol];
+            } else if (h.type === 'usetf' || symbol.includes('.US') || /^[A-Z]{1,5}$/.test(symbol)) {
                 ratio = 0.15; // default avg for us etf
-            } else if (h.type === 'twetf') {
-                ratio = 0.45; // default avg for tw etf
+            } else if (h.type === 'twetf' || symbol.endsWith('.TW')) {
+                // If it's 00xxx.TW it's likely an ETF
+                if (/^00\d{3,5}/.test(symbol)) {
+                    ratio = 0.45; // default avg for tw etf
+                }
             }
             // individual stocks assume 0 expense ratio
             
