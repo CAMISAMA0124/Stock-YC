@@ -19,8 +19,6 @@ YC.dashboardPage = (() => {
       <!-- Portfolio P&L Summary Card -->
       <div id="dash-pnl-card" class="pnl-summary-card" style="display:none"></div>
 
-      <div id="visitor-count" style="text-align:center; font-size:10px; color:var(--text-3); margin-bottom:10px; opacity:0.6">👁️ 載入中...</div>
-
       <!-- Dividend Tracking Card (Phase 1) -->
       <div id="dash-div-card" class="card" style="display:none; background: linear-gradient(135deg, rgba(0,212,170,0.1) 0%, rgba(20,20,20,1) 100%); border-color: rgba(0,212,170,0.2);"></div>
 
@@ -140,14 +138,6 @@ YC.dashboardPage = (() => {
 
     const dateEl = document.getElementById('dash-date');
     if (dateEl) dateEl.textContent = new Date().toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-    // Fetch analytics
-    fetch('/api/analytics')
-      .then(r => r.json())
-      .then(data => {
-        const vc = document.getElementById('visitor-count');
-        if (vc) vc.innerText = `👁️ 本站累計瀏覽次數: ${data.total}`;
-      }).catch(() => {});
 
     const eqEl = document.getElementById('dash-equity-pct');
     if (eqEl && alloc.ready) {
