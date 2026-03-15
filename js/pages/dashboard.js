@@ -352,17 +352,17 @@ YC.dashboardPage = (() => {
     card.innerHTML = `
       <div class="pnl-header">
         <span class="pnl-label">💼 持倉總市值 (TWD)</span>
-        <span class="pnl-total">${YC.allocation.formatNTD(totalMV)}</span>
+        <span class="pnl-total">NT$ ${YC.allocation.formatNTD(totalMV)}</span>
       </div>
       <div class="pnl-row-main">
         <div class="pnl-col">
           <div class="pnl-col-lbl">今日損益</div>
-          <div class="pnl-col-val" style="color:${dayColor}">${daySign}${YC.allocation.formatNTD(totalDayPnl)}</div>
+          <div class="pnl-col-val" style="color:${dayColor}">${daySign}NT$ ${YC.allocation.formatNTD(totalDayPnl)}</div>
         </div>
         <div class="pnl-divider"></div>
         <div class="pnl-col">
           <div class="pnl-col-lbl">帳面損益 (含手續費)</div>
-          <div class="pnl-col-val" style="color:${pnlColor}">${pnlSign}${YC.allocation.formatNTD(totalPnl)}</div>
+          <div class="pnl-col-val" style="color:${pnlColor}">${pnlSign}NT$ ${YC.allocation.formatNTD(totalPnl)}</div>
           <div class="pnl-col-sub" style="color:${pnlColor}">${pnlSign}${totalPnlPct.toFixed(2)}%</div>
         </div>
       </div>`;
@@ -591,15 +591,15 @@ YC.dashboardPage = (() => {
       <div class="goal-track"><div class="goal-fill" style="width:${pct}%"></div></div>
       <div class="goal-stats">
         <div class="goal-stat">
-          <div class="goal-stat-val">${YC.allocation.formatNTD(totalAssets)}</div>
+          <div class="goal-stat-val">NT$ ${YC.allocation.formatNTD(totalAssets)}</div>
           <div class="goal-stat-lbl">目前資產</div>
         </div>
         <div class="goal-stat">
-          <div class="goal-stat-val">${YC.allocation.formatNTD(settings.goalAmount)}</div>
+          <div class="goal-stat-val">NT$ ${YC.allocation.formatNTD(settings.goalAmount)}</div>
           <div class="goal-stat-lbl">目標金額</div>
         </div>
         <div class="goal-stat">
-          <div class="goal-stat-val" style="color:var(--t3)">${YC.allocation.formatNTD(remaining)}</div>
+          <div class="goal-stat-val" style="color:var(--t3)">NT$ ${YC.allocation.formatNTD(remaining)}</div>
           <div class="goal-stat-lbl">尚差金額</div>
         </div>
         ${daysLeft ? `<div class="goal-stat"><div class="goal-stat-val" style="color:var(--accent)">${daysLeft}</div><div class="goal-stat-lbl">剩餘時間</div></div>` : ''}

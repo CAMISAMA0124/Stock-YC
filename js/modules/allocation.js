@@ -78,12 +78,10 @@ YC.allocation = (() => {
     }
 
     function formatNTD(amount) {
-        if (amount == null) return '--';
+        if (amount == null || isNaN(amount)) return '--';
         const abs = Math.abs(amount);
         const prefix = amount < 0 ? '-' : '';
-        if (abs >= 1e8) return prefix + (abs / 1e8).toFixed(2) + ' 億';
-        if (abs >= 1e4) return prefix + (abs / 1e4).toFixed(1) + ' 萬';
-        return prefix + Math.round(abs).toLocaleString();
+        return prefix + Math.round(abs).toLocaleString('zh-TW');
     }
 
     /* ── Compute Portfolio Dividends ──────────────── */
