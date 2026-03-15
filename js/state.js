@@ -174,6 +174,8 @@ YC.state = (() => {
         const parsed = JSON.parse(saved);
         data = { ...DEFAULTS, ...parsed };
         data.settings = { ...DEFAULTS.settings, ...parsed.settings };
+        data.marketData = parsed.marketData || {};
+        data.exchangeRate = parsed.exchangeRate || 31.5;
       } catch (e) {
         data = { ...DEFAULTS };
       }
@@ -190,7 +192,9 @@ YC.state = (() => {
       holdings: data.holdings,
       stockNotes: data.stockNotes,
       sentiment: data.sentiment,
-      sentimentFetchedAt: data.sentimentFetchedAt
+      sentimentFetchedAt: data.sentimentFetchedAt,
+      exchangeRate: data.exchangeRate,
+      marketData: data.marketData
     }));
   }
 

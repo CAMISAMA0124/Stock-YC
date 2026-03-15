@@ -316,44 +316,53 @@ YC.dashboardPage = (() => {
   /* ── P&L Summary Card ─────────────────────────── */
   function renderPnlCard(holdings) {
     const card = document.getElementById('dash-pnl-card');
-    if (!card || !holdings.length) { if (card) card.style.display = 'none'; return; }
+    if (!card) return;
+    
+    if (!holdings || holdings.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
 
     let totalMV = 0, totalCost = 0, totalDayPnl = 0;
-    for (const h of holdings) {
-      const mkt = YC.state.getMarketData(h.symbol) || {};
-      const shares = h.shares || 0;
-      const price = mkt.price || h.costPrice || 0;
-      const mv = price * shares;
-      const cost = ((h.costPrice || 0) * shares) + (h.totalFees || 0);
-      const dayPnl = mkt.price ? (mv * ((mkt.changePct || 0) / 100)) : 0;
+    const state = YC.state.get();
+    const rate = state.exchangeRate || 32.0;
 
-      totalMV += mv;
-      totalCost += cost;
-      totalDayPnl += dayPnl;
+    for (const h of holdings) {
+      totalMV += (h.marketValue || 0);
+      totalCost += (h.costTotal || 0);
+      
+      // Day P&L needs to be converted if it's US
+      const mkt = YC.state.getMarketData(h.symbol) || {};
+      const mvTWD = h.marketValue || 0;
+      const dayPnlTWD = mvTWD * ((mkt.changePct || 0) / 100);
+      totalDayPnl += dayPnlTWD;
     }
 
     const totalPnl = totalMV - totalCost;
     const totalPnlPct = totalCost ? (totalPnl / totalCost * 100) : 0;
+    
     const daySign = totalDayPnl >= 0 ? '+' : '';
     const pnlSign = totalPnl >= 0 ? '+' : '';
     const dayColor = totalDayPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
     const pnlColor = totalPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
 
+    console.log(`[Dashboard] Rendering P&L: MV=${totalMV}, Cost=${totalCost}, Pnl=${totalPnl}`);
+
     card.style.display = 'block';
     card.innerHTML = `
       <div class="pnl-header">
-        <span class="pnl-label">💼 持倉總市值</span>
-        <span class="pnl-total">NT$ ${totalMV.toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
+        <span class="pnl-label">💼 持倉總市值 (TWD)</span>
+        <span class="pnl-total">${YC.allocation.formatNTD(totalMV)}</span>
       </div>
       <div class="pnl-row-main">
         <div class="pnl-col">
           <div class="pnl-col-lbl">今日損益</div>
-          <div class="pnl-col-val" style="color:${dayColor}">${daySign}NT$ ${Math.abs(totalDayPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</div>
+          <div class="pnl-col-val" style="color:${dayColor}">${daySign}${YC.allocation.formatNTD(totalDayPnl)}</div>
         </div>
         <div class="pnl-divider"></div>
         <div class="pnl-col">
-          <div class="pnl-col-lbl">帳面損益<span style="font-size:9px;opacity:0.7">（扣成本）</span></div>
-          <div class="pnl-col-val" style="color:${pnlColor}">${pnlSign}NT$ ${Math.abs(totalPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</div>
+          <div class="pnl-col-lbl">帳面損益 (含手續費)</div>
+          <div class="pnl-col-val" style="color:${pnlColor}">${pnlSign}${YC.allocation.formatNTD(totalPnl)}</div>
           <div class="pnl-col-sub" style="color:${pnlColor}">${pnlSign}${totalPnlPct.toFixed(2)}%</div>
         </div>
       </div>`;

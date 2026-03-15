@@ -8,12 +8,21 @@ YC.portfolio = (() => {
     /* ── Get all holdings with market data enriched ── */
     function getEnriched() {
         const state = YC.state.get();
+        const rate = state.exchangeRate || 32.0;
+
         return state.holdings.map(h => {
             const enriched = YC.temperature.enrich(h);
             const mkt = YC.state.getMarketData(h.symbol) || {};
 
-            const costTotal = (h.costPrice || 0) * (h.shares || 1) + (h.totalFees || 0);
-            const marketValue = (mkt.price || h.costPrice || 0) * (h.shares || 1);
+            const isUS = h.currency === 'USD' || (h.type && h.type.includes('us'));
+            
+            // Convert to TWD for shared calculations
+            const costPriceTWD = isUS ? (h.costPrice * rate) : h.costPrice;
+            const feesTWD = isUS ? (h.totalFees * rate) : h.totalFees;
+            const marketPriceTWD = isUS ? ((mkt.price || h.costPrice) * rate) : (mkt.price || h.costPrice);
+
+            const costTotal = (costPriceTWD || 0) * (h.shares || 0) + (feesTWD || 0);
+            const marketValue = (marketPriceTWD || 0) * (h.shares || 0);
             const gainAmt = marketValue - costTotal;
             const gainPct = costTotal > 0 ? (gainAmt / costTotal) * 100 : 0;
 
@@ -23,6 +32,7 @@ YC.portfolio = (() => {
                 marketValue,
                 gainAmt,
                 gainPct,
+                isUS
             };
         });
     }
