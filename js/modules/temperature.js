@@ -29,6 +29,7 @@ YC.temperature = (() => {
         history: mkt.history,
         volume: mkt.volume,
         avgVolume: mkt.avgVolume,
+        changePct: mkt.changePct
       });
     }
 
@@ -39,24 +40,29 @@ YC.temperature = (() => {
     const currency = mkt.currency || (type.includes('tw') ? 'TWD' : 'USD');
 
     const FALLBACK_INDUSTRIES = {
-      '0050.TW': '市值型ETF', '0056.TW': '高股息ETF', '00878.TW': '高股息ETF',
-      '00919.TW': '高股息ETF', '00929.TW': '科技高息ETF', '00924.TW': '美股高息ETF',
-      '00713.TW': '高息低波ETF', '006208.TW': '市值型ETF', '2330.TW': '半導體',
-      '2317.TW': '電子代工', 'VOO': '市值型ETF', 'QQQ': '科技型ETF', 'VTI': '市值型ETF',
-      'SPY': '市值型ETF', 'TSM': '半導體', 'NVDA': '半導體/AI'
+      '2330': '半導體', '2317': '電子代工/伺服器', '2454': 'IC設計', '2303': '半導體',
+      '2382': 'AI伺服器', '3231': 'AI伺服器', '6669': 'AI伺服器', '3034': 'IC設計',
+      '2881': '金融保險', '2882': '金融保險', '2603': '航運物流', '2308': '電子零組件',
+      '0050': '市值型ETF', '0056': '高股息ETF', '00878': '高股息ETF', '00919': '高股息ETF',
+      '00929': '科技高息ETF', '00713': '高息低波ETF', '00924': '美股高息ETF',
+      'AAPL': '消費電子/美股', 'MSFT': '雲端服務/美股', 'GOOGL': '網路搜尋/美股',
+      'AMZN': '電子商務/美股', 'META': '社交媒體/美股', 'TSLA': '電動車/美股',
+      'NVDA': '半導體/AI', 'AVGO': '半導體', 'AMD': '半導體', 'TSM': '半導體',
+      'VOO': '市值型ETF', 'VTI': '市值型ETF', 'QQQ': '科技型ETF'
     };
 
     let industry = stockMeta.industry || mkt.industry || mkt.sector || '';
-    if (!industry) {
+    if (!industry || industry === '未分類') {
       const base = symbol.split('.')[0];
       industry = FALLBACK_INDUSTRIES[symbol] || FALLBACK_INDUSTRIES[base];
     }
     
+    // Final defensive check
     if (!industry && (symbol.endsWith('.TW') || /^\d{4,6}/.test(symbol))) {
        if (symbol.startsWith('00')) industry = '台股ETF';
        else industry = '台股標的';
     }
-    if (!industry) industry = '未分類';
+    if (!industry || industry === 'undefined') industry = '未分類';
 
     return {
       symbol,

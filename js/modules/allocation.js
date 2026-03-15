@@ -215,7 +215,8 @@ YC.allocation = (() => {
                 low52w: mkt.low52w, 
                 ma200: mkt.ma200, 
                 ma50: mkt.ma50, 
-                history: mkt.history 
+                history: mkt.history,
+                changePct: mkt.changePct
             });
 
             let mv = mkt.price * (h.shares || 0);
@@ -228,9 +229,9 @@ YC.allocation = (() => {
             totalWeight += mv;
         }
 
-        const avgScore = totalWeight > 0 ? Math.round(weightedTemp / totalWeight) : 50;
+        const avgScore = totalWeight > 0 ? (weightedTemp / totalWeight) : 50;
         return {
-            score: avgScore,
+            score: Math.round(avgScore),
             totalWeight
         };
     }

@@ -174,6 +174,14 @@ YC.state = (() => {
         const parsed = JSON.parse(saved);
         data = { ...DEFAULTS, ...parsed };
         data.settings = { ...DEFAULTS.settings, ...parsed.settings };
+        
+        // Use parsed watchlist if it exists (even if empty)
+        if (parsed.watchlist !== undefined) {
+          data.watchlist = parsed.watchlist;
+        } else {
+          data.watchlist = DEFAULTS.watchlist;
+        }
+
         data.marketData = parsed.marketData || {};
         data.exchangeRate = parsed.exchangeRate || 31.5;
       } catch (e) {
@@ -190,6 +198,7 @@ YC.state = (() => {
     localStorage.setItem(LS_KEY, JSON.stringify({
       settings: data.settings,
       holdings: data.holdings,
+      watchlist: data.watchlist,
       stockNotes: data.stockNotes,
       sentiment: data.sentiment,
       sentimentFetchedAt: data.sentimentFetchedAt,

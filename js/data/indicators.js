@@ -36,13 +36,13 @@ YC.indicators = (() => {
 
     /* ── MA Deviation % ───────────────────────────── */
     function maDeviation(price, ma) {
-        if (!ma || ma === 0) return 0;
+        if (!ma || ma === 0 || !price) return null;
         return ((price - ma) / ma) * 100;
     }
 
     /* ── 52-Week Percentile ────────────────────────── */
     function percentile52w(price, high52w, low52w) {
-        if (high52w === low52w) return 50;
+        if (!high52w || !low52w || !price || high52w === low52w) return null;
         const p = ((price - low52w) / (high52w - low52w)) * 100;
         return Math.max(0, Math.min(100, p));
     }
@@ -84,10 +84,10 @@ YC.indicators = (() => {
 
     /* ── Composite Temperature Score ───────────────── */
     function temperatureScore(data) {
-        const { price, high52w, low52w, ma200, ma50, history } = data;
+        const { price, high52w, low52w, ma200, ma50, history, changePct } = data;
         const closes = (history || []).map(h => h.c).filter(Boolean);
 
-        const rsiVal = closes.length >= 15 ? rsi(closes) : estimateRSI(price, ma50, ma200);
+        const rsiVal = closes.length >= 15 ? rsi(closes) : estimateRSI(price, ma50, ma200, changePct);
 
         let maScore = null;
         if (ma200 && price) {
@@ -110,16 +110,26 @@ YC.indicators = (() => {
         if (maScore != null) { weightedSum += maScore * 0.35; totalWeight += 0.35; }
         if (pctScore != null) { weightedSum += pctScore * 0.30; totalWeight += 0.30; }
 
-        if (totalWeight === 0) return 50;
-        return Math.round(Math.max(0, Math.min(100, weightedSum / totalWeight)));
+        if (totalWeight < 0.1) return 50; // Truly no data
+        const finalScore = Math.round(Math.max(0, Math.min(100, weightedSum / totalWeight)));
+        
+        // If it's EXACTLY 50, but we have some data, shift i slightly to 51 to show it's working
+        // or just return it as is. Let's keep it as is.
+        return finalScore;
     }
 
-    function estimateRSI(price, ma50, ma200) {
-        if (!price) return 50;
+    function estimateRSI(price, ma50, ma200, changePct = 0) {
+        if (!price) return null;
         const ref = ma200 || ma50;
-        if (!ref) return 50;
-        const dev = maDeviation(price, ref);
-        return Math.max(20, Math.min(80, 50 + dev * 1.0));
+        if (ref) {
+            const dev = maDeviation(price, ref);
+            return Math.max(20, Math.min(80, 50 + dev * 1.2));
+        }
+        // Fallback: use today's change to nudge from 50
+        if (changePct && changePct !== 0) {
+            return Math.max(30, Math.min(70, 50 + changePct * 2.0));
+        }
+        return null;
     }
 
     /* ── Classify Temperature Zone ─────────────────── */
