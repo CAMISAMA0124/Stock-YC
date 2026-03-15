@@ -1,12 +1,12 @@
-const CACHE_NAME = 'yc-ark-v2';
+const CACHE_NAME = 'yc-ark-v3';
 const ASSETS = [
   './',
   './index.html',
-  './index.css',
+  './index.css?v=2',
   './manifest.json',
   './icon.png',
-  './js/app.js',
-  './js/state.js'
+  './js/app.js?v=2',
+  './js/state.js?v=2'
 ];
 
 self.addEventListener('install', (event) => {
