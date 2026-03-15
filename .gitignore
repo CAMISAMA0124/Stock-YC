@@ -1,0 +1,8 @@
+node_modules
+.DS_Store
+*.log
+tmp_*
+test_*
+error.txt
+capture_ui.js
+ARK.mp4
