@@ -79,7 +79,7 @@ ${myNote || '(目前無備註)'}
     /* ── Call Google Gemini API ───────────────────────── */
     async function callGemini(prompt, apiKey, onChunk) {
         const model = 'gemini-2.0-flash';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -158,8 +158,11 @@ ${myNote || '(目前無備註)'}
     async function analyze(holding, { onChunk, onDone, onError } = {}) {
         const settings = YC.state.get().settings;
         const provider = settings.aiProvider || 'gemini';
-        const keyMap = { openai: settings.apiKeyOpenAI, gemini: settings.apiKeyGemini, claude: settings.apiKeyClaude };
-        const apiKey = keyMap[provider] || settings.apiKey;
+        
+        let apiKey = settings.apiKey;
+        if (provider === 'openai' && settings.apiKeyOpenAI) apiKey = settings.apiKeyOpenAI;
+        else if (provider === 'gemini' && settings.apiKeyGemini) apiKey = settings.apiKeyGemini;
+        else if (provider === 'claude' && settings.apiKeyClaude) apiKey = settings.apiKeyClaude;
 
         if (!apiKey) {
             const msg = '請在設定中輸入 AI API Key';
@@ -199,8 +202,12 @@ ${myNote || '(目前無備註)'}
     async function analyzePortfolio(holdings, { onChunk, onDone, onError } = {}) {
         const settings = YC.state.get().settings;
         const provider = settings.aiProvider || 'gemini';
-        const keyMap = { openai: settings.apiKeyOpenAI, gemini: settings.apiKeyGemini, claude: settings.apiKeyClaude };
-        const apiKey = keyMap[provider] || settings.apiKey;
+        
+        let apiKey = settings.apiKey;
+        if (provider === 'openai' && settings.apiKeyOpenAI) apiKey = settings.apiKeyOpenAI;
+        else if (provider === 'gemini' && settings.apiKeyGemini) apiKey = settings.apiKeyGemini;
+        else if (provider === 'claude' && settings.apiKeyClaude) apiKey = settings.apiKeyClaude;
+
         if (!apiKey) { if (onError) onError('請先設定 API Key'); return; }
 
         const sentiment = YC.state.get().sentiment;

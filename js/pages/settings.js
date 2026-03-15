@@ -60,8 +60,12 @@ YC.settingsPage = (() => {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">API Key</label>
-                    <input type="password" id="set-api-key" class="form-input" value="${settings.apiKey || ''}" placeholder="貼上您的 API Key">
+                    <label class="form-label">API Key (Gemini)</label>
+                    <input type="password" id="set-api-key-gemini" class="form-input" value="${settings.apiKeyGemini || settings.apiKey || ''}" placeholder="貼上您的 Gemini API Key">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">API Key (OpenAI)</label>
+                    <input type="password" id="set-api-key-openai" class="form-input" value="${settings.apiKeyOpenAI || ''}" placeholder="貼上您的 OpenAI API Key (選填)">
                     <div class="form-help" style="line-height:1.6; padding-top:4px;">
                         <ul style="margin:4px 0 0 18px; padding:0; color:var(--text-3);">
                             <li><span style="color:var(--t0)">安全性保證：</span>金鑰僅加密儲存於您的瀏覽器本地，絕不上傳。</li>
@@ -138,7 +142,9 @@ YC.settingsPage = (() => {
       maxCashPct: parseInt(document.getElementById('set-max-cash').value) || 50,
       minCashPct: parseInt(document.getElementById('set-min-cash').value) || 5,
       aiProvider: document.getElementById('set-ai-provider').value,
-      apiKey: document.getElementById('set-api-key').value,
+      apiKeyGemini: document.getElementById('set-api-key-gemini').value.trim(),
+      apiKeyOpenAI: document.getElementById('set-api-key-openai').value.trim(),
+      apiKey: document.getElementById('set-api-key-gemini').value.trim(), // Keep for legacy
       goalName: document.getElementById('set-goal-name').value,
       goalAmount: parseFloat(document.getElementById('set-goal-amt').value) || 0,
       goalDate: document.getElementById('set-goal-date').value,

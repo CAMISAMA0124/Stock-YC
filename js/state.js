@@ -25,7 +25,7 @@ YC.state = (() => {
       apiKey: '',
       apiKeyOpenAI: '',
       apiKeyGemini: '',
-      apiKeyClause: '',
+      apiKeyClaude: '',
     },
     // User's portfolio holdings
     holdings: [],
