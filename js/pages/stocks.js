@@ -280,7 +280,7 @@ YC.stocks = (() => {
       const cost = ((holding.costPrice || 0) * (holding.shares || 0)) + (holding.totalFees || 0);
       const pnl = mv - cost;
       const pnlPct = cost ? ((pnl / cost) * 100) : 0;
-      const pnlColor = pnl >= 0 ? 'var(--t0)' : 'var(--t3)';
+      const pnlColor = pnl >= 0 ? 'var(--pos)' : 'var(--neg)';
       holdingHtml = `
         <div class="detail-pnl-box">
           <div class="detail-pnl-row">
@@ -330,19 +330,17 @@ YC.stocks = (() => {
     const ibsStr = ibsVal !== null ? ibsVal.toFixed(2) : '--';
     let ibsColor = 'inherit';
     if (ibsVal !== null) {
-      if (ibsVal <= 0.2) ibsColor = 'var(--t0)'; // Low, good for bounce
-      else if (ibsVal >= 0.8) ibsColor = 'var(--t3)'; // High, chance of pullback
+      if (ibsVal <= 0.2) ibsColor = 'var(--neg)'; // Low, cool (Green)
+      else if (ibsVal >= 0.8) ibsColor = 'var(--pos)'; // High, hot (Red)
     }
     const ma200Dev = mkt.ma200 && mkt.price ? ((mkt.price - mkt.ma200) / mkt.ma200 * 100).toFixed(2) : null;
     const volRatio = mkt.volume && mkt.avgVolume ? (mkt.volume / mkt.avgVolume).toFixed(2) : null;
 
-    // MDD calculation
     const histPrices = mkt.history?.map(h => h.c) || [];
     const mddVal = YC.indicators.calculateMDD(histPrices);
     const mddWarningHtml = parseFloat(mddVal) >= 30 
-       ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(255,53,96,0.15);color:var(--t3);margin-right:6px" title="過去5年最大跌幅">MDD -${mddVal}% ⚠️高波動</span>`
+       ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(0,212,170,0.15);color:var(--neg);margin-right:6px" title="過去5年最大跌幅">MDD -${mddVal}% ⚠️高波動</span>`
        : `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--bg-input);color:var(--text-2);margin-right:6px" title="過去5年最大跌幅">MDD -${mddVal}%</span>`;
-
     overlay.innerHTML = `
     <div class="modal-sheet" style="max-height:92vh">
       <div class="modal-drag"></div>
@@ -407,8 +405,8 @@ YC.stocks = (() => {
         ${[
         ['MA50', mkt.ma50 ? `${curSym}${mkt.ma50.toFixed(isTW ? 1 : 2)}` : '--'],
         ['MA200', mkt.ma200 ? `${curSym}${mkt.ma200.toFixed(isTW ? 1 : 2)}` : '--'],
-        ['MA200 乖離', ma200Dev !== null ? `<span style="color:${parseFloat(ma200Dev) >= 0 ? 'var(--t0)' : 'var(--t3)'}">${parseFloat(ma200Dev) >= 0 ? '+' : ''}${ma200Dev}%</span>` : '--'],
-        ['RSI(14)', rsiVal !== '--' ? `<span style="color:${rsiVal <= 30 ? 'var(--t0)' : rsiVal >= 70 ? 'var(--t3)' : 'inherit'}">${rsiVal}</span>` : '--'],
+        ['MA200 乖離', ma200Dev !== null ? `<span style="color:${parseFloat(ma200Dev) >= 0 ? 'var(--pos)' : 'var(--neg)'}">${parseFloat(ma200Dev) >= 0 ? '+' : ''}${ma200Dev}%</span>` : '--'],
+        ['RSI(14)', rsiVal !== '--' ? `<span style="color:${rsiVal <= 30 ? 'var(--neg)' : rsiVal >= 70 ? 'var(--pos)' : 'inherit'}">${rsiVal}</span>` : '--'],
         ['日內最高', mkt.dayHigh ? `${curSym}${mkt.dayHigh.toFixed(isTW ? 1 : 2)}` : '--'],
         ['日內最低', mkt.dayLow ? `${curSym}${mkt.dayLow.toFixed(isTW ? 1 : 2)}` : '--'],
         ['IBS 短線', ibsStr !== '--' ? `<span style="color:${ibsColor}">${ibsStr}</span>` : '--'],
@@ -521,7 +519,7 @@ YC.stocks = (() => {
               <span>🔹 趨勢與勝率回測</span>
               <span style="font-size:10px;font-weight:400;color:var(--text-3)">(過去 2 年共 ${stats.totalSignals} 次)</span>
             </div>
-            <div style="font-size:10px;color:var(--t0);background:rgba(0,212,170,0.1);padding:2px 6px;border-radius:4px">
+            <div style="font-size:10px;color:var(--pos);background:var(--accent-dim);padding:2px 6px;border-radius:4px">
               ${stats.strategy || '逢低買入'}
             </div>
           </div>
@@ -534,7 +532,7 @@ YC.stocks = (() => {
                 <div style="text-align:right">
                   <div style="font-size:11px;color:var(--text-3);letter-spacing:0.5px">30日/90日上漲率</div>
                   <div style="font-size:16px;font-weight:800">
-                    <span style="color:${winRate30 !== 'N/A' && parseFloat(winRate30) >= 60 ? 'var(--t0)' : 'var(--text-1)'}">${winRate30}</span>
+                    <span style="color:${winRate30 !== 'N/A' && parseFloat(winRate30) >= 60 ? 'var(--pos)' : 'var(--text-1)'}">${winRate30}</span>
                     <span style="font-size:12px;color:var(--text-3);font-weight:400"> / ${stats.winRate?.['90d'] || '--'}</span>
                   </div>
                 </div>
@@ -543,13 +541,13 @@ YC.stocks = (() => {
                <div class="detail-cell" style="padding:10px">
                  <div class="detail-cell-lbl">平均回報 (30d / 90d)</div>
                  <div class="detail-cell-val" style="font-size:14px">
-                    <span style="color:${avgRet30 !== 'N/A' && parseFloat(avgRet30) > 0 ? 'var(--t0)' : 'var(--text-1)'}">${avgRet30}</span>
+                    <span style="color:${avgRet30 !== 'N/A' && parseFloat(avgRet30) > 0 ? 'var(--pos)' : 'var(--text-1)'}">${avgRet30}</span>
                     <span style="font-size:11px;color:var(--text-3);font-weight:400"> / ${stats.avgReturn?.['90d'] || '--'}</span>
                   </div>
                </div>
                <div class="detail-cell" style="padding:10px">
                  <div class="detail-cell-lbl">最大回撤幅度</div>
-                 <div class="detail-cell-val" style="font-size:14px;color:var(--t3)">${mdd30 !== 'N/A' ? '-' + mdd30 : mdd30}</div>
+                 <div class="detail-cell-val" style="font-size:14px;color:var(--neg)">${mdd30 !== 'N/A' ? '-' + mdd30 : mdd30}</div>
                </div>
             </div>
             ${r.reason && r.reason.length > 0 ? `

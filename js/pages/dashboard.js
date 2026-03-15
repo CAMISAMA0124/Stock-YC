@@ -376,7 +376,7 @@ YC.dashboardPage = (() => {
     const divData = YC.allocation.computePortfolioDividends(holdings);
     const avgExpRatio = YC.allocation.computeAverageExpenseRatio(holdings);
     
-    const expColor = avgExpRatio > 0.50 ? 'var(--t3)' : avgExpRatio < 0.20 ? 'var(--t0)' : 'var(--text-1)';
+    const expColor = avgExpRatio > 0.50 ? 'var(--neg)' : avgExpRatio < 0.20 ? 'var(--pos)' : 'var(--text-1)';
     
     card.style.display = 'block';
     card.innerHTML = `
@@ -384,7 +384,7 @@ YC.dashboardPage = (() => {
       <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items:flex-end">
         <div>
           <div style="color:var(--text-2); font-size:12px; margin-bottom:4px">預估年領股息</div>
-          <div style="font-size:20px; font-weight:800; color:var(--t0)">NT$ ${divData.totalDividends.toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</div>
+          <div style="font-size:20px; font-weight:800; color:var(--pos)">NT$ ${divData.totalDividends.toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</div>
         </div>
         <div style="text-align:center">
           <div style="color:var(--text-2); font-size:12px; margin-bottom:4px">組合平均殖利率</div>
@@ -414,10 +414,10 @@ YC.dashboardPage = (() => {
     
     let stepsHtml = '';
     if (rebalData.steps.length === 0) {
-        stepsHtml = `<div class="empty-state" style="padding:10px; min-height:60px; background:transparent"><div class="empty-state-text" style="color:var(--t0)">✅ 目前各項資產皆接近目標權重，無需大幅調整</div></div>`;
+        stepsHtml = `<div class="empty-state" style="padding:10px; min-height:60px; background:transparent"><div class="empty-state-text" style="color:var(--pos)">✅ 目前各項資產皆接近目標權重，無需大幅調整</div></div>`;
     } else {
         stepsHtml = rebalData.steps.map(s => {
-            const color = s.action === '買入' ? 'var(--t0)' : 'var(--t3)';
+            const color = s.action === '買入' ? 'var(--pos)' : 'var(--neg)';
             return `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05)">
               <div>
