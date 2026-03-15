@@ -806,7 +806,7 @@ body {
 }
 
 .alloc-pct.reduce {
-  color: var(--t0);
+  color: var(--t3);
 }
 
 .alloc-pct.hold {
@@ -814,7 +814,7 @@ body {
 }
 
 .alloc-pct.add {
-  color: var(--t3);
+  color: var(--t0);
 }
 
 .alloc-desc {
@@ -860,8 +860,8 @@ body {
 }
 
 .adjust-banner.reduce {
-  background: var(--t0-bg);
-  border: 1px solid rgba(0, 212, 170, 0.25);
+  background: var(--t3-bg);
+  border: 1px solid rgba(255, 53, 96, 0.25);
 }
 
 .adjust-banner.hold {
@@ -870,8 +870,8 @@ body {
 }
 
 .adjust-banner.add {
-  background: var(--t3-bg);
-  border: 1px solid rgba(255, 53, 96, 0.25);
+  background: var(--t0-bg);
+  border: 1px solid rgba(0, 212, 170, 0.25);
 }
 
 .adjust-label {
@@ -886,7 +886,7 @@ body {
 }
 
 .adjust-amount.reduce {
-  color: var(--t0);
+  color: var(--t3);
 }
 
 .adjust-amount.hold {
@@ -894,7 +894,7 @@ body {
 }
 
 .adjust-amount.add {
-  color: var(--t3);
+  color: var(--t0);
 }
 
 /* ?�?� Sentiment Indicators ?�?�?�?�?�?�?�?�?�?�?�?�?� */
@@ -1091,8 +1091,8 @@ body {
 }
 
 .ai-badge.buy {
-  background: var(--t3-bg);
-  color: var(--t3);
+  background: var(--t0-bg);
+  color: var(--t0);
 }
 
 .ai-badge.hold {
@@ -1101,8 +1101,8 @@ body {
 }
 
 .ai-badge.sell {
-  background: var(--t0-bg);
-  color: var(--t0);
+  background: var(--t3-bg);
+  color: var(--t3);
 }
 
 .ai-typing::after {

@@ -414,10 +414,10 @@ YC.dashboardPage = (() => {
     
     let stepsHtml = '';
     if (rebalData.steps.length === 0) {
-        stepsHtml = `<div class="empty-state" style="padding:10px; min-height:60px; background:transparent"><div class="empty-state-text" style="color:var(--pos)">✅ 目前各項資產皆接近目標權重，無需大幅調整</div></div>`;
+        stepsHtml = `<div class="empty-state" style="padding:10px; min-height:60px; background:transparent"><div class="empty-state-text" style="color:var(--t0)">✅ 目前各項資產皆接近目標權重，無需大幅調整</div></div>`;
     } else {
         stepsHtml = rebalData.steps.map(s => {
-            const color = s.action === '買入' ? 'var(--pos)' : 'var(--neg)';
+            const color = s.action === '買入' ? 'var(--t0)' : 'var(--t3)';
             return `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05)">
               <div>
