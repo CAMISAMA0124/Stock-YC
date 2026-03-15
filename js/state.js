@@ -304,7 +304,8 @@ YC.state = (() => {
       'VOO': 0.03, 'VTI': 0.03, 'IVV': 0.03, 'SPY': 0.09, 'QQQ': 0.20,
       'TLT': 0.15, 'GLD': 0.40, 'SOXX': 0.35, 'ARKK': 0.75,
       '0050.TW': 0.43, '0056.TW': 0.74, '00878.TW': 0.25, '00919.TW': 0.30,
-      '00929.TW': 0.30, '00713.TW': 0.38, '00881.TW': 0.35, '00757.TW': 0.65
+      '00929.TW': 0.30, '00713.TW': 0.38, '00881.TW': 0.35, '00757.TW': 0.65,
+      '00924.TW': 0.45, '00915.TW': 0.35, '00918.TW': 0.30
   };
 
   return { get, patch, setSettings, setHoldings, addHolding, updateHolding, setMarketData, getMarketData, isStale, getNote, saveNote, save, exportJSON, importJSON, EXPENSE_RATIOS };

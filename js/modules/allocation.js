@@ -96,13 +96,23 @@ YC.allocation = (() => {
             const price = mkt.price || h.costPrice || 0;
             const mv = price * shares;
             
+            const yieldFallbacks = {
+                '0050.TW': 0.035, '0056.TW': 0.075, '00878.TW': 0.062, '00919.TW': 0.10,
+                '00929.TW': 0.08, '00713.TW': 0.065, '00924.TW': 0.06, '00881.TW': 0.04,
+                '2330.TW': 0.02, '2317.TW': 0.05, '1101.TW': 0.04, '2881.TW': 0.045
+            };
+            
             // divYield from Yahoo is typically a decimal (e.g. 0.045 for 4.5%)
-            const yieldVal = mkt.divYield || 0;
+            let yieldVal = mkt.divYield || 0;
+            if (yieldVal === 0 && yieldFallbacks[h.symbol]) {
+                yieldVal = yieldFallbacks[h.symbol];
+            }
             const annualDiv = mv * yieldVal;
             
             totalDividends += annualDiv;
             totalMarketValue += mv;
         }
+
 
         const avgYield = totalMarketValue > 0 ? (totalDividends / totalMarketValue) : 0;
         
