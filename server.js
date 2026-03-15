@@ -22,7 +22,7 @@ app.get('/api/quote/:symbol', async (req, res) => {
         // Fetch all data in parallel for speed
         const [quoteResult, summaryResult, chartResult] = await Promise.allSettled([
             yahooFinance.quote(symbol),
-            yahooFinance.quoteSummary(symbol, { modules: ['summaryDetail', 'defaultKeyStatistics'] }),
+            yahooFinance.quoteSummary(symbol, { modules: ['summaryDetail', 'defaultKeyStatistics', 'assetProfile'] }),
             // Restoring chart() with proper Unix timestamp as it is more stable than historical()
             Promise.race([
                 yahooFinance.chart(symbol, {
@@ -52,7 +52,9 @@ app.get('/api/quote/:symbol', async (req, res) => {
             priceToBook: summary.defaultKeyStatistics?.priceToBook,
             trailingEps: summary.defaultKeyStatistics?.trailingEps,
             marketCap: summary.summaryDetail?.marketCap,
-            dividendYield: summary.summaryDetail?.dividendYield
+            dividendYield: summary.summaryDetail?.dividendYield,
+            sector: summary.assetProfile?.sector,
+            industry: summary.assetProfile?.industry || summary.assetProfile?.sector
         };
 
         const history = rawHistory
@@ -81,6 +83,8 @@ app.get('/api/quote/:symbol', async (req, res) => {
                 regularMarketVolume: quote.regularMarketVolume,
                 averageDailyVolume10Day: quote.averageDailyVolume10Day,
                 ...fundamentals, // Spread fundamentals here
+                sector: fundamentals.sector,
+                industry: fundamentals.industry,
                 currency: quote.currency || 'USD',
                 exchangeName: quote.fullExchangeName || quote.exchange
             },

@@ -38,12 +38,28 @@ YC.temperature = (() => {
     const price = mkt.price || mkt.regularMarketPrice;
     const currency = mkt.currency || (type.includes('tw') ? 'TWD' : 'USD');
 
+    const FALLBACK_INDUSTRIES = {
+      '0050.TW': '市值型ETF', '0056.TW': '高股息ETF', '00878.TW': '高股息ETF',
+      '00919.TW': '高股息ETF', '00929.TW': '科技高息ETF', '00924.TW': '美股高息ETF',
+      '00713.TW': '高息低波ETF', '006208.TW': '市值型ETF', '2330.TW': '半導體',
+      '2317.TW': '電子代工', 'VOO': '市值型ETF', 'QQQ': '科技型ETF', 'VTI': '市值型ETF',
+      'SPY': '市值型ETF', 'TSM': '半導體', 'NVDA': '半導體/AI'
+    };
+
+    let industry = stockMeta.industry || mkt.industry || mkt.sector || '';
+    if (!industry && FALLBACK_INDUSTRIES[symbol]) industry = FALLBACK_INDUSTRIES[symbol];
+    if (!industry && symbol.endsWith('.TW')) {
+       if (symbol.startsWith('00')) industry = '台股ETF';
+       else industry = '台股標的';
+    }
+    if (!industry) industry = '未分類';
+
     return {
       symbol,
       name,
       shortName,
       type,
-      industry: stockMeta.industry || '',
+      industry,
       price,
       currency,
       changePct,
