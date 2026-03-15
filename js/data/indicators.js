@@ -84,12 +84,12 @@ YC.indicators = (() => {
 
     /* ── Composite Temperature Score ───────────────── */
     function temperatureScore(data) {
-        const { price, high52w, low52w, ma200, ma50, history, volume, avgVolume } = data;
+        const { price, high52w, low52w, ma200, ma50, history } = data;
         const closes = (history || []).map(h => h.c).filter(Boolean);
 
         const rsiVal = closes.length >= 15 ? rsi(closes) : estimateRSI(price, ma50, ma200);
 
-        let maScore = 50;
+        let maScore = null;
         if (ma200 && price) {
             const dev = maDeviation(price, ma200);
             maScore = Math.max(0, Math.min(100, (dev + 40) / 80 * 100));
@@ -98,13 +98,20 @@ YC.indicators = (() => {
             maScore = Math.max(0, Math.min(100, (dev + 25) / 50 * 100));
         }
 
-        let pctScore = 50;
+        let pctScore = null;
         if (high52w && low52w && price) {
             pctScore = percentile52w(price, high52w, low52w);
         }
 
-        const score = rsiVal * 0.35 + maScore * 0.35 + pctScore * 0.30;
-        return Math.round(Math.max(0, Math.min(100, score)));
+        let weightedSum = 0;
+        let totalWeight = 0;
+
+        if (rsiVal != null) { weightedSum += rsiVal * 0.35; totalWeight += 0.35; }
+        if (maScore != null) { weightedSum += maScore * 0.35; totalWeight += 0.35; }
+        if (pctScore != null) { weightedSum += pctScore * 0.30; totalWeight += 0.30; }
+
+        if (totalWeight === 0) return 50;
+        return Math.round(Math.max(0, Math.min(100, weightedSum / totalWeight)));
     }
 
     function estimateRSI(price, ma50, ma200) {

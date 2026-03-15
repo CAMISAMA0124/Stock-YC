@@ -47,8 +47,12 @@ YC.temperature = (() => {
     };
 
     let industry = stockMeta.industry || mkt.industry || mkt.sector || '';
-    if (!industry && FALLBACK_INDUSTRIES[symbol]) industry = FALLBACK_INDUSTRIES[symbol];
-    if (!industry && symbol.endsWith('.TW')) {
+    if (!industry) {
+      const base = symbol.split('.')[0];
+      industry = FALLBACK_INDUSTRIES[symbol] || FALLBACK_INDUSTRIES[base];
+    }
+    
+    if (!industry && (symbol.endsWith('.TW') || /^\d{4,6}/.test(symbol))) {
        if (symbol.startsWith('00')) industry = '台股ETF';
        else industry = '台股標的';
     }
