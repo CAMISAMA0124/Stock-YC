@@ -1,0 +1,17 @@
+{
+  "name": "風控 YC — 智慧財金系統",
+  "short_name": "風控 YC",
+  "description": "智慧財金風控系統 — 股票溫度監測、現金配置建議、AI持倉分析",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080812",
+  "theme_color": "#7c6fff",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
