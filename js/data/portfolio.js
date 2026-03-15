@@ -80,9 +80,19 @@ YC.portfolio = (() => {
         const state = YC.state.get();
         if (!state.watchlist.find(w => w.symbol === item.symbol)) {
             state.watchlist.push(item);
-            YC.state.save(); // Now calling the exported save()
+            YC.state.save();
         }
     }
 
-    return { getEnriched, totalMarketValue, equityRatio, getWatchlistEnriched, formatCurrency, formatPrice, addToWatchlist };
+    /* ── Remove symbol from watchlist & holdings ── */
+    function removeFromWatchlist(symbol) {
+        const state = YC.state.get();
+        // Remove from watchlist
+        state.watchlist = state.watchlist.filter(w => w.symbol !== symbol);
+        // Also remove from holdings to keep it clean
+        state.holdings = state.holdings.filter(h => h.symbol !== symbol);
+        YC.state.save();
+    }
+
+    return { getEnriched, totalMarketValue, equityRatio, getWatchlistEnriched, formatCurrency, formatPrice, addToWatchlist, removeFromWatchlist };
 })();

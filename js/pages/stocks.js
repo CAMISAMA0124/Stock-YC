@@ -296,7 +296,9 @@ YC.stocks = (() => {
           <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('stock-detail-modal').remove()">關閉</button>
           <button class="btn btn-ghost" style="flex:1" onclick="YC.stocks.openEditHoldingModal('${symbol}')">✏️ 編輯持股</button>
           <button class="btn btn-ghost" style="flex:1" onclick="YC.app.navigate('ai')">🤖 AI分析</button>
-        </div>`;
+        </div>
+        <button class="btn btn-danger btn-full" style="margin-top:10px; opacity:0.7" onclick="YC.stocks.removeStock('${symbol}')">🗑️ 從清單刪除標的 (含持股)</button>
+        `;
     } else {
       holdingHtml = `
         <div style="padding:12px;background:var(--bg-input);border-radius:12px;margin-top:4px">
@@ -313,6 +315,7 @@ YC.stocks = (() => {
         </div>
         <div style="display:flex;gap:10px;margin-top:10px">
           <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('stock-detail-modal').remove()">關閉</button>
+          <button class="btn btn-danger" style="flex:1; opacity:0.7" onclick="YC.stocks.removeStock('${symbol}')">🗑️ 刪除標的</button>
         </div>`;
     }
 
@@ -707,11 +710,19 @@ YC.stocks = (() => {
     }
   }
 
+  function removeStock(symbol) {
+    if (confirm(`確定要將 ${symbol} 從清單中刪除嗎？\n如果是已持有的股票，持股資料也會一併被移除。`)) {
+      YC.portfolio.removeFromWatchlist(symbol);
+      document.getElementById('stock-detail-modal')?.remove();
+      renderList();
+    }
+  }
+
   function refresh() { renderList(); }
 
   return {
     render, refresh, openDetail, openAddModal, addToPortfolio,
     addToPortfolioFromDetail, openEditHoldingModal, saveEditHolding, filterIndustry,
-    saveNote
+    saveNote, removeStock
   };
 })();
