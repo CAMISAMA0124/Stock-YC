@@ -11,6 +11,10 @@ app.use(express.json({ limit: '5mb' }));
 // Memory storage for device migration (short-lived)
 const syncVault = new Map();
 
+// Simple Visitor Counter (In-memory for basic tracking, consider KV for production)
+let totalVisitors = 0;
+const activeUsers = new Set();
+
 // Serve static files from the current directory (frontend)
 app.use(express.static(__dirname));
 
@@ -193,6 +197,15 @@ app.get('/api/sync/pull/:code', (req, res) => {
     syncVault.delete(code); // One-time use
     console.log(`[Sync] State pulled for code: ${code}`);
     res.json(data);
+});
+
+// --- Analytics Endpoint ---
+app.get('/api/analytics', (req, res) => {
+    totalVisitors++;
+    res.json({
+        total: totalVisitors,
+        active: Math.max(1, activeUsers.size) // Simple active count
+    });
 });
 
 
