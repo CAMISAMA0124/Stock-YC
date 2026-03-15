@@ -479,25 +479,33 @@ YC.dashboardPage = (() => {
     // 2. Sector Allocation (Simplified SVG Bar Chart)
     const sectors = {};
     let totalValue = 0;
-    const rate = YC.state.get().exchangeRate || 31.5;
 
     for (const h of holdings) {
-      const mkt = YC.state.getMarketData(h.symbol);
-      let mv = (mkt?.price || h.costPrice || 0) * (h.shares || 0);
-      if (mkt?.currency === 'USD' || (h.type && h.type.includes('us'))) mv *= rate;
-      
+      const mv = h.marketValue || 0;
       const sector = h.industry || '未分類';
       sectors[sector] = (sectors[sector] || 0) + mv;
       totalValue += mv;
     }
 
-    const sortedSectors = Object.entries(sectors).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const sortedSectors = Object.entries(sectors)
+        .filter(([name, val]) => val > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4);
     
+    // Safety check for empty or zero-value portfolio
+    if (totalValue <= 0) {
+        sectorCard.innerHTML = `
+          <div class="card-title" style="font-size:12px; margin-bottom:10px">核心產業分布</div>
+          <div style="height:80px; display:flex; align-items:center; justify-content:center; color:var(--text-3); font-size:11px">暫無持倉數據</div>
+        `;
+        return;
+    }
+
     sectorCard.innerHTML = `
       <div class="card-title" style="font-size:12px; margin-bottom:10px">核心產業分布</div>
       <div style="display:flex; flex-direction:column; gap:6px; height:80px; justify-content:center">
         ${sortedSectors.map(([name, val]) => {
-          const pct = Math.round((val / totalValue) * 100);
+          const pct = totalValue > 0 ? Math.round((val / totalValue) * 100) : 0;
           return `
             <div style="display:flex; align-items:center; gap:8px">
               <div style="font-size:9px; color:var(--text-2); width:45px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${name}</div>
