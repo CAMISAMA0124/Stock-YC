@@ -110,26 +110,24 @@ YC.indicators = (() => {
         if (maScore != null) { weightedSum += maScore * 0.35; totalWeight += 0.35; }
         if (pctScore != null) { weightedSum += pctScore * 0.30; totalWeight += 0.30; }
 
-        if (totalWeight < 0.1) return 50; // Truly no data
-        const finalScore = Math.round(Math.max(0, Math.min(100, weightedSum / totalWeight)));
-        
-        // If it's EXACTLY 50, but we have some data, shift i slightly to 51 to show it's working
-        // or just return it as is. Let's keep it as is.
-        return finalScore;
-    }
+        if (totalWeight < 0.1) return 50; 
 
+        // Pure technical internal score
+        const finalScore = weightedSum / totalWeight;
+
+        return Math.max(0, Math.min(100, finalScore));
+    }
     function estimateRSI(price, ma50, ma200, changePct = 0) {
         if (!price) return null;
         const ref = ma200 || ma50;
         if (ref) {
             const dev = maDeviation(price, ref);
-            return Math.max(20, Math.min(80, 50 + dev * 1.2));
+            // Higher multiplier (1.8) to make it more sensitive to MA deviations
+            return Math.max(10, Math.min(90, 50 + dev * 1.8));
         }
-        // Fallback: use today's change to nudge from 50
-        if (changePct && changePct !== 0) {
-            return Math.max(30, Math.min(70, 50 + changePct * 2.0));
-        }
-        return null;
+        // Fallback: use today's change. Use 3.0 multiplier for day-only sensitivity.
+        const c = changePct || 0;
+        return Math.max(20, Math.min(80, 50 + c * 3.0));
     }
 
     /* ── Classify Temperature Zone ─────────────────── */

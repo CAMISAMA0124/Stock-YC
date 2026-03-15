@@ -228,7 +228,6 @@ YC.allocation = (() => {
             weightedTemp += temp * mv;
             totalWeight += mv;
         }
-
         const avgScore = totalWeight > 0 ? (weightedTemp / totalWeight) : 50;
         return {
             score: Math.round(avgScore),
@@ -236,5 +235,31 @@ YC.allocation = (() => {
         };
     }
 
-    return { compute, renderStackBar, formatNTD, computePortfolioDividends, calculateRebalanceSteps, computeAverageExpenseRatio, calculatePortfolioScore };
+    /* ── Calculate Watchlist Heat (Simple Avg) ──────── */
+    function calculateWatchlistScore() {
+        const state = YC.state.get();
+        let totalScore = 0;
+        let count = 0;
+
+        for (const w of state.watchlist) {
+            const mkt = YC.state.getMarketData(w.symbol);
+            if (!mkt || !mkt.price) continue;
+
+            const temp = YC.indicators.temperatureScore({
+                price: mkt.price,
+                high52w: mkt.high52w,
+                low52w: mkt.low52w,
+                ma200: mkt.ma200,
+                ma50: mkt.ma50,
+                history: mkt.history,
+                changePct: mkt.changePct
+            });
+
+            totalScore += temp;
+            count++;
+        }
+        return count > 0 ? Math.round(totalScore / count) : 50;
+    }
+
+    return { compute, renderStackBar, formatNTD, computePortfolioDividends, calculateRebalanceSteps, computeAverageExpenseRatio, calculatePortfolioScore, calculateWatchlistScore };
 })();

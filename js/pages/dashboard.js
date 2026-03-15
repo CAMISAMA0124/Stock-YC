@@ -465,15 +465,31 @@ YC.dashboardPage = (() => {
 
     // 1. Health Score
     const health = YC.allocation.calculatePortfolioScore(holdings);
+    const watchlistScore = YC.allocation.calculateWatchlistScore();
     const cls = YC.indicators.classify(health.score);
+    const wCls = YC.indicators.classify(watchlistScore);
     
     healthCard.innerHTML = `
-      <div class="card-title" style="font-size:12px; margin-bottom:10px">組合健康評分</div>
-      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80px">
-        <div style="font-size:32px; font-weight:900; color:${cls.color}">${health.score}</div>
-        <div style="font-size:11px; font-weight:700; color:${cls.color}; margin-top:4px">${cls.icon} ${cls.label}</div>
+      <div class="card-title row-between" style="font-size:12px; margin-bottom:10px">
+        <span>組合健康評分</span>
+        <span style="font-size:10px;font-weight:400;color:var(--text-3)">持倉權重制</span>
       </div>
-      <div style="font-size:10px; color:var(--text-3); margin-top:6px; text-align:center">持倉加權溫度計</div>
+      <div style="display:flex; align-items:center; justify-content:space-around; height:80px">
+        <div style="display:flex; flex-direction:column; align-items:center">
+          <div style="font-size:32px; font-weight:900; color:${cls.color}">${health.score}</div>
+          <div style="font-size:10px; font-weight:700; color:${cls.color}; margin-top:2px">${cls.icon} ${cls.label}</div>
+          <div style="font-size:9px; color:var(--text-3); margin-top:4px">目前持倉</div>
+        </div>
+        <div style="width:1px; height:40px; background:rgba(255,255,255,0.1)"></div>
+        <div style="display:flex; flex-direction:column; align-items:center; opacity:0.8">
+          <div style="font-size:24px; font-weight:800; color:${wCls.color}">${watchlistScore}</div>
+          <div style="font-size:10px; font-weight:600; color:${wCls.color}; margin-top:2px">${wCls.label}</div>
+          <div style="font-size:9px; color:var(--text-3); margin-top:4px">自選平均</div>
+        </div>
+      </div>
+      <div style="font-size:9px; color:var(--text-3); margin-top:6px; text-align:center; opacity:0.7">
+        綜合 ${holdings.length} 檔持倉與 ${YC.state.get().watchlist.length} 檔自選標的
+      </div>
     `;
 
     // 2. Sector Allocation (Simplified SVG Bar Chart)
@@ -547,7 +563,15 @@ YC.dashboardPage = (() => {
     const pnlSign = totalPnl >= 0 ? '+' : '';
     const dayColor = dayPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
     const pnlColor = totalPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
-    const temp = YC.indicators.temperatureScore({ price: mkt.price, high52w: mkt.high52w, low52w: mkt.low52w, ma200: mkt.ma200, history: mkt.history });
+    const temp = YC.indicators.temperatureScore({ 
+        price: mkt.price, 
+        high52w: mkt.high52w, 
+        low52w: mkt.low52w, 
+        ma200: mkt.ma200, 
+        ma50: mkt.ma50,
+        history: mkt.history,
+        changePct: mkt.changePct
+    });
     const cls = YC.indicators.classify(temp);
 
     return `
