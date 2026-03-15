@@ -6,3 +6,6 @@ test_*
 error.txt
 capture_ui.js
 ARK.mp4
+.env
+.env.*
+*.local

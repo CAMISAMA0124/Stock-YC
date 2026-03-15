@@ -683,11 +683,18 @@ body {
   background: var(--bg-input);
   border-radius: var(--r-md);
   margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {
-  flex: 1;
-  padding: 7px 4px;
+  flex-shrink: 0;
+  padding: 7px 12px;
   border: none;
   background: transparent;
   color: var(--text-2);

@@ -114,8 +114,7 @@ YC.indicators = (() => {
 
         // Pure technical internal score
         const finalScore = weightedSum / totalWeight;
-
-        return Math.max(0, Math.min(100, finalScore));
+        return Math.round(Math.max(0, Math.min(100, finalScore)));
     }
     function estimateRSI(price, ma50, ma200, changePct = 0) {
         if (!price) return null;
