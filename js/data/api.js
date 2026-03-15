@@ -22,9 +22,26 @@ YC.api = (() => {
             const changePct = (change / prevClose) * 100;
 
             let displayName = meta.longName || meta.shortName || symbol;
+            
+            // Local fallback for common TW stocks/ETFs
+            const TW_NAMES = {
+                '00924.TW': '復華美國標普500低波動高股息',
+                '0050.TW': '元大台灣50',
+                '0056.TW': '元大高股息',
+                '00878.TW': '國泰永續高股息',
+                '00919.TW': '群益台灣精選高息',
+                '00929.TW': '復華台灣科技優息',
+                '00713.TW': '元大台灣高息低波'
+            };
+
             if (symbol.endsWith('.TW')) {
+                if (TW_NAMES[symbol]) {
+                    displayName = TW_NAMES[symbol];
+                }
                 const localMeta = YC.state.get().watchlist.find(w => w.symbol === symbol);
-                if (localMeta && localMeta.name) displayName = localMeta.name;
+                if (localMeta && localMeta.name && localMeta.name !== symbol.replace('.TW','')) {
+                    displayName = localMeta.name;
+                }
             }
 
             return {
@@ -79,7 +96,25 @@ YC.api = (() => {
                 const changePct = q.regularMarketChangePercent != null ? q.regularMarketChangePercent : (prevClose !== 0 ? (change / prevClose * 100) : 0);
 
                 const localMeta = YC.state.get().watchlist.find(w => w.symbol === ticker);
-                const displayName = (isTW && localMeta?.name) ? localMeta.name : (q.longName || q.shortName || q.displayName || q.symbol);
+                
+                // Fallback for names
+                const TW_NAMES = {
+                    '00924.TW': '復華美國標普500低波動高股息',
+                    '0050.TW': '元大台灣50',
+                    '0056.TW': '元大高股息',
+                    '00878.TW': '國泰永續高股息',
+                    '00919.TW': '群益台灣精選高息',
+                    '00929.TW': '復華台灣科技優息',
+                    '00713.TW': '元大台灣高息低波'
+                };
+
+                let displayName = q.longName || q.shortName || q.displayName || q.symbol;
+                if (isTW) {
+                    if (TW_NAMES[ticker]) displayName = TW_NAMES[ticker];
+                    if (localMeta && localMeta.name && localMeta.name !== ticker.replace('.TW','')) {
+                        displayName = localMeta.name;
+                    }
+                }
 
                 map[ticker] = {
                     symbol: ticker,

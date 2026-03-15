@@ -180,8 +180,8 @@ YC.stocks = (() => {
     symbolInput.addEventListener('input', (e) => {
       let val = e.target.value.trim().toUpperCase();
       
-      // 1. Auto-.TW for 4-digit numbers (Taiwan stocks)
-      if (/^\d{4}$/.test(val)) {
+      // 1. Auto-.TW for 4-6 digit numbers (Taiwan stocks / ETFs)
+      if (/^\d{4,6}$/.test(val)) {
         val = val + '.TW';
         e.target.value = val;
         // Auto-select type
