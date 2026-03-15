@@ -68,7 +68,7 @@ YC.charting = (() => {
             .map((v, i) => v ? `${getX(i).toFixed(1)},${getY(v).toFixed(1)}` : null)
             .filter(Boolean) : [];
         const isUp = data[data.length - 1].c >= data[0].c;
-        const mainColor = options.color || (isUp ? '#00d4aa' : '#ff3560');
+        const mainColor = options.color || (isUp ? '#ff3560' : '#00d4aa');
 
         // Gradient & Area fill
         const gradId = `grad-${Math.random().toString(36).substr(2, 9)}`;
@@ -105,7 +105,7 @@ YC.charting = (() => {
                     const barH = (d.v / maxV) * (chartH * 0.25);
                     const x = getX(i) - (chartW / data.length) / 2;
                     const prevC = i > 0 ? data[i - 1].c : d.o;
-                    const barColor = d.c >= prevC ? 'rgba(0, 212, 170, 0.35)' : 'rgba(255, 53, 96, 0.35)';
+                    const barColor = d.c >= prevC ? 'rgba(255, 53, 96, 0.35)' : 'rgba(0, 212, 170, 0.35)';
                     return `<rect x="${x}" y="${height - padding.b - barH}" width="${(chartW / data.length) * 0.8}" height="${barH}" fill="${barColor}" rx="1"/>`;
                 }).join('');
             })()}

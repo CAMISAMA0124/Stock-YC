@@ -343,8 +343,8 @@ YC.dashboardPage = (() => {
     
     const daySign = totalDayPnl >= 0 ? '+' : '';
     const pnlSign = totalPnl >= 0 ? '+' : '';
-    const dayColor = totalDayPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
-    const pnlColor = totalPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
+    const dayColor = totalDayPnl >= 0 ? 'var(--pos)' : 'var(--neg)';
+    const pnlColor = totalPnl >= 0 ? 'var(--pos)' : 'var(--neg)';
 
     console.log(`[Dashboard] Rendering P&L: MV=${totalMV}, Cost=${totalCost}, Pnl=${totalPnl}`);
 

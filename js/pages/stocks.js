@@ -501,7 +501,7 @@ YC.stocks = (() => {
 
       YC.charting.renderPriceChart('detail-chart-container', latestMkt.history || [], {
         ma50: true, ma200: true,
-        color: latestMkt.changePct >= 0 ? 'var(--t0)' : 'var(--t3)'
+        color: latestMkt.changePct >= 0 ? 'var(--pos)' : 'var(--neg)'
       });
 
       // Fetch and render backtest data asynchronously
@@ -584,7 +584,7 @@ YC.stocks = (() => {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
     const isUp = data[data.length - 1] >= data[0];
-    const color = isUp ? 'var(--t0)' : 'var(--t3)';
+    const color = isUp ? 'var(--pos)' : 'var(--neg)';
     const fillPts = `${pts[0].split(',')[0]},${h} ${pts.join(' ')} ${pts[pts.length - 1].split(',')[0]},${h}`;
 
     return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="flex:1;min-width:0;overflow:visible">
