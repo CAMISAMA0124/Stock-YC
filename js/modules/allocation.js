@@ -101,8 +101,13 @@ YC.allocation = (() => {
             
             const mkt = YC.state.getMarketData(h.symbol) || {};
             
-            // divYield from Yahoo is typically a decimal (e.g. 0.045 for 4.5%)
+            // Normalize: Yahoo API sometimes returns 0.045 (ratio) and sometimes 4.5 (%)
+            // If it's > 0.4 (40%), it's almost certainly a percentage that needs dividing by 100
             let yieldVal = mkt.divYield || 0;
+            if (yieldVal > 0.4) {
+                yieldVal = yieldVal / 100;
+            }
+
             if (yieldVal === 0 && yieldFallbacks[h.symbol]) {
                 yieldVal = yieldFallbacks[h.symbol];
             }
