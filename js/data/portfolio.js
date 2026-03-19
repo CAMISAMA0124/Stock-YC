@@ -27,6 +27,7 @@ YC.portfolio = (() => {
             const gainPct = costTotal > 0 ? (gainAmt / costTotal) * 100 : 0;
 
             return {
+                ...h,
                 ...enriched,
                 costTotal,
                 marketValue,
