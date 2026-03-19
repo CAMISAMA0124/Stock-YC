@@ -210,7 +210,7 @@ YC.dashboardPage = (() => {
         <div class="s-item">
           <div class="s-icon">${ind.icon}</div>
           <div class="s-body">
-            <div class="s-name" title="${ind.desc || ''}">${ind.label} <span style="font-size:10px; color:var(--text-3); margin-left:4px; font-weight:normal; cursor:help" title="${ind.desc || ''}">ⓘ</span></div>
+            <div class="s-name">${ind.label} <span style="font-size:11px; color:var(--text-3); margin-left:2px; font-weight:normal; cursor:help; padding:4px 8px" onclick="event.stopPropagation(); alert('${ind.label}\\n\\n${ind.desc}')">ⓘ</span></div>
             <div class="s-bar">
               <div class="s-bar-fill" style="width:${ind.score}%;background:${ind.color}"></div>
             </div>
