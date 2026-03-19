@@ -142,11 +142,11 @@ YC.stocks = (() => {
     const overlay = document.createElement('div');
     overlay.id = 'add-stock-modal';
     overlay.className = 'modal-overlay';
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay); });
 
     overlay.innerHTML = `
     <div class="modal-sheet">
-      <div class="modal-drag"></div>
+      <div class="modal-drag" onclick="YC.stocks.closeModal('add-stock-modal')" style="cursor:pointer"></div>
       <div style="font-size:18px;font-weight:800;margin-bottom:16px">新增自選股票</div>
 
       <div class="form-group">
@@ -165,7 +165,7 @@ YC.stocks = (() => {
       </div>
 
       <div style="display:flex;gap:10px;margin-top:14px">
-        <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('add-stock-modal').remove()">取消</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="YC.stocks.closeModal('add-stock-modal')">取消</button>
         <button class="btn btn-primary" style="flex:1" id="btn-do-add">確認並新增</button>
       </div>
       <div id="add-result" style="margin-top:12px;font-size:13px;color:var(--text-2)"></div>
@@ -226,9 +226,22 @@ YC.stocks = (() => {
 
     res.innerHTML = `<span style="color:var(--t0)">✅ 已新增 ${data.name} 至 ${type.includes('tw') ? '台股' : '美股'}清單</span>`;
     setTimeout(() => {
-      document.getElementById('add-stock-modal')?.remove();
+      closeModal('add-stock-modal');
       renderList();
     }, 1200);
+  }
+
+  function closeModal(idOrEl) {
+    const el = (typeof idOrEl === 'string') ? document.getElementById(idOrEl) : idOrEl;
+    if (!el) return;
+    const sheet = el.querySelector('.modal-sheet');
+    if (sheet) {
+      el.classList.add('closing'); // Overlay fade out
+      sheet.classList.add('closing'); // Sheet slide down
+      setTimeout(() => el.remove(), 280);
+    } else {
+      el.remove();
+    }
   }
 
   /* ──────────────────────────────────────────────────────
@@ -238,34 +251,39 @@ YC.stocks = (() => {
     const mkt = YC.state.getMarketData(symbol);
     const wItem = YC.state.get().watchlist.find(w => w.symbol === symbol) || { symbol, name: symbol, type: 'tw' };
 
-    const existing = document.getElementById('stock-detail-modal');
-    if (existing) existing.remove();
-    const overlay = document.createElement('div');
-    overlay.id = 'stock-detail-modal';
-    overlay.className = 'modal-overlay';
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    let overlay = document.getElementById('stock-detail-modal');
+    const isUpdating = !!overlay;
+
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'stock-detail-modal';
+      overlay.className = 'modal-overlay';
+      overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay); });
+      document.body.appendChild(overlay);
+    }
 
     if (!mkt || !mkt.history || mkt.history.length < 2) {
-      // No data yet or missing history — show loading state
+      // Show loading content inside the existings (or new) overlay
       overlay.innerHTML = `
-        <div class="modal-sheet">
-          <div class="modal-drag"></div>
+        <div class="modal-sheet" style="${isUpdating ? 'animation:none' : ''}">
+          <div class="modal-drag" onclick="YC.stocks.closeModal('stock-detail-modal')" style="cursor:pointer"></div>
           <div style="text-align:center;padding:40px 0">
             <div style="font-size:22px;font-weight:800;margin-bottom:8px">${wItem.name}</div>
             <div style="color:var(--text-3);font-size:13px">${symbol.replace('.TW', '')} · ${wItem.industry || ''}</div>
-            <div style="margin-top:24px;color:var(--text-2)">數據載入中...</div>
-            <button class="btn btn-secondary" style="margin-top:24px" onclick="document.getElementById('stock-detail-modal').remove()">關閉</button>
+            <div style="margin-top:24px;color:var(--text-2)">📡 數據連線中...</div>
+            <button class="btn btn-secondary" style="margin-top:24px" onclick="YC.stocks.closeModal('stock-detail-modal')">關閉</button>
           </div>
         </div>`;
-      document.body.appendChild(overlay);
+      
       YC.api.fetchStock(symbol).then(d => {
-        if (d) { overlay.remove(); openDetail(symbol); }
+        if (d) { openDetail(symbol); }
       });
       return;
     }
 
-    const temp = YC.indicators.temperatureScore({ price: mkt.price, high52w: mkt.high52w, low52w: mkt.low52w, ma200: mkt.ma200, ma50: mkt.ma50, history: mkt.history });
-    const cls = YC.indicators.classify(temp);
+    // These calculations are moved to the deferred block
+    // const temp = YC.indicators.temperatureScore({ price: mkt.price, high52w: mkt.high52w, low52w: mkt.low52w, ma200: mkt.ma200, ma50: mkt.ma50, history: mkt.history });
+    // const cls = YC.indicators.classify(temp);
     const holding = YC.state.get().holdings.find(h => h.symbol === symbol);
     const currency = mkt.currency || 'USD';
     const curSym = currency === 'TWD' ? 'NT$' : '$';
@@ -293,7 +311,7 @@ YC.stocks = (() => {
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-top:10px">
-          <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('stock-detail-modal').remove()">關閉</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="YC.stocks.closeModal('stock-detail-modal')">關閉</button>
           <button class="btn btn-ghost" style="flex:1" onclick="YC.stocks.openEditHoldingModal('${symbol}')">✏️ 編輯持股</button>
           <button class="btn btn-ghost" style="flex:1" onclick="YC.app.navigate('ai')">🤖 AI分析</button>
         </div>
@@ -314,7 +332,7 @@ YC.stocks = (() => {
           <button class="btn btn-primary btn-full" onclick="YC.stocks.addToPortfolioFromDetail('${symbol}')">確認加入持股</button>
         </div>
         <div style="display:flex;gap:10px;margin-top:10px">
-          <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('stock-detail-modal').remove()">關閉</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="YC.stocks.closeModal('stock-detail-modal')">關閉</button>
           <button class="btn btn-danger" style="flex:1; opacity:0.7" onclick="YC.stocks.removeStock('${symbol}')">🗑️ 刪除標的</button>
         </div>`;
     }
@@ -323,43 +341,28 @@ YC.stocks = (() => {
     const h52 = mkt.high52w || mkt.price * 1.3;
     const l52 = mkt.low52w || mkt.price * 0.7;
     const rangePct = h52 > l52 ? Math.round(((mkt.price - l52) / (h52 - l52)) * 100) : 50;
+    // const mddWarningHtml = `<span id="detail-mdd-inline" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--bg-input);color:var(--text-3);margin-right:6px">MDD --%</span>`; // Moved to template
 
     // Mini spYCline SVG (30-day history)
     const spYCSvg = buildSpYCline(mkt.history || [], mkt.price);
 
-    // RSI estimation & IBS
-    const rsiVal = mkt.history?.length >= 14 ? YC.indicators.calculateRSI(mkt.history.map(h => h.c || h)).toFixed(0) : '--';
-    const ibsVal = YC.indicators.calculateIBS(mkt.price, mkt.dayHigh, mkt.dayLow);
-    const ibsStr = ibsVal !== null ? ibsVal.toFixed(2) : '--';
-    let ibsColor = 'inherit';
-    if (ibsVal !== null) {
-      if (ibsVal <= 0.2) ibsColor = 'var(--neg)'; // Low, cool (Green)
-      else if (ibsVal >= 0.8) ibsColor = 'var(--pos)'; // High, hot (Red)
-    }
-    const ma200Dev = mkt.ma200 && mkt.price ? ((mkt.price - mkt.ma200) / mkt.ma200 * 100).toFixed(2) : null;
-    const volRatio = mkt.volume && mkt.avgVolume ? (mkt.volume / mkt.avgVolume).toFixed(2) : null;
-
-    const histPrices = mkt.history?.map(h => h.c) || [];
-    const mddVal = YC.indicators.calculateMDD(histPrices);
-    const mddWarningHtml = parseFloat(mddVal) >= 30 
-       ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(0,212,170,0.15);color:var(--neg);margin-right:6px" title="過去5年最大跌幅">MDD -${mddVal}% ⚠️高波動</span>`
-       : `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--bg-input);color:var(--text-2);margin-right:6px" title="過去5年最大跌幅">MDD -${mddVal}%</span>`;
+    // Initial placeholders for instant modal popup
     overlay.innerHTML = `
-    <div class="modal-sheet" style="max-height:92vh">
-      <div class="modal-drag"></div>
+    <div class="modal-sheet" style="max-height:92vh;${isUpdating ? 'animation:none' : ''}">
+      <div class="modal-drag" onclick="YC.stocks.closeModal('stock-detail-modal')" style="cursor:pointer"></div>
 
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="font-size:22px;font-weight:900;letter-spacing:-0.5px">${wItem.name}</div>
           <div style="font-size:12px;color:var(--text-3);margin-top:2px;display:flex;align-items:center;">
-            ${mddWarningHtml}
+            <span id="detail-mdd-inline" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--bg-input);color:var(--text-3);margin-right:6px">MDD --%</span>
             ${symbol.replace('.TW', '')} · ${wItem.industry || ''}
             ${mkt.exchangeName ? `· ${mkt.exchangeName}` : ''}
           </div>
         </div>
-        <div class="temp-badge ${cls.cls}" style="font-size:13px;padding:5px 12px;white-space:nowrap">
-          ${temp} ${cls.icon}
+        <div id="detail-temp-badge" class="temp-badge text-muted" style="font-size:13px;padding:5px 12px;white-space:nowrap;background:var(--bg-input)">
+          -- ⚖️
         </div>
       </div>
 
@@ -408,26 +411,26 @@ YC.stocks = (() => {
         ${[
         ['MA50', mkt.ma50 ? `${curSym}${mkt.ma50.toFixed(isTW ? 1 : 2)}` : '--'],
         ['MA200', mkt.ma200 ? `${curSym}${mkt.ma200.toFixed(isTW ? 1 : 2)}` : '--'],
-        ['MA200 乖離', ma200Dev !== null ? `<span style="color:${parseFloat(ma200Dev) >= 0 ? 'var(--pos)' : 'var(--neg)'}">${parseFloat(ma200Dev) >= 0 ? '+' : ''}${ma200Dev}%</span>` : '--'],
-        ['RSI(14)', rsiVal !== '--' ? `<span style="color:${rsiVal <= 30 ? 'var(--neg)' : rsiVal >= 70 ? 'var(--pos)' : 'inherit'}">${rsiVal}</span>` : '--'],
+        ['MA200 乖離', mkt.ma200 && mkt.price ? `<span id="detail-ma200-dev">--%</span>` : '--'],
+        ['RSI(14)', `<span id="detail-rsi-val">--</span>`],
         ['日內最高', mkt.dayHigh ? `${curSym}${mkt.dayHigh.toFixed(isTW ? 1 : 2)}` : '--'],
         ['日內最低', mkt.dayLow ? `${curSym}${mkt.dayLow.toFixed(isTW ? 1 : 2)}` : '--'],
-        ['IBS 短線', ibsStr !== '--' ? `<span style="color:${ibsColor}">${ibsStr}</span>` : '--'],
-        ['量比', volRatio !== null ? `<span style="color:${parseFloat(volRatio) > 1.5 ? 'var(--t2)' : 'inherit'}">${volRatio}x</span>` : '--'],
+        ['IBS 短線', `<span id="detail-ibs-val">--</span>`],
+        ['量比', mkt.volume && mkt.avgVolume ? `<span id="detail-vol-ratio">--x</span>` : '--'],
       ].map(([l, v]) => `
         <div class="detail-cell">
           <div class="detail-cell-lbl">${l}</div>
-          <div class="detail-cell-val" style="font-size: 13px;">${v}</div>
+          <div class="detail-cell-val" id="val-${l.replace(' ', '-')}" style="font-size: 13px;">${v}</div>
         </div>`).join('')}
       </div>
 
       <!-- Temperature detail -->
-      <div style="display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px 14px;background:var(--bg-input);border-radius:12px;border:1px solid rgba(255,255,255,0.05)">
-        ${YC.temperature.renderMiniGauge(temp, 52)}
+      <div id="detail-temp-box" style="display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px 14px;background:var(--bg-input);border-radius:12px;border:1px solid rgba(255,255,255,0.05);opacity:0.5;transition:opacity 0.3s">
+        <div style="width:52px;height:52px;background:var(--bg-list);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text-3)">...</div>
         <div style="flex:1">
           <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px">溫度診斷分析</div>
-          <div style="font-size:15px;font-weight:800;color:${cls.color}">${cls.label} (${temp}/100)</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.4">${cls.desc || '綜合 RSI 超買超賣、MA 均線乖離與 52 週位階進行測算'}</div>
+          <div id="detail-temp-title" style="font-size:15px;font-weight:800;color:var(--text-3)">載入分析中...</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.4">正在聚合指標進行風險測算</div>
         </div>
       </div>
 
@@ -455,7 +458,7 @@ YC.stocks = (() => {
 
       <!-- 📊 Historical Backtest Section -->
       <div id="detail-backtest-container" style="margin-top:16px; min-height: 80px;">
-        <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;font-weight:600;display:flex;align-items:center;gap:6px">
+        <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:6px">
           <span>📊 歷史趨勢回測</span>
           <span style="font-size:10px;font-weight:400;color:var(--text-3)">(過去 2 年)</span>
         </div>
@@ -483,33 +486,104 @@ YC.stocks = (() => {
 
     document.body.appendChild(overlay);
 
-    // Render chart — always fetch fresh history (batch data has no history)
+    // 4. Render chart & Heavy stats — deferred to ensure modal animation is perfectly smooth
     setTimeout(async () => {
       const chartEl = document.getElementById('detail-chart-container');
       if (!chartEl) return;
 
-      // Get latest mkt from state (may have been updated)
       let latestMkt = YC.state.getMarketData(symbol) || mkt;
-
-      // Fetch full history if missing (batch quotes don't include history)
       if (!latestMkt.history || latestMkt.history.length < 2) {
         chartEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-3);font-size:13px">📡 載入 K 線資料中...</div>`;
         const fresh = await YC.api.fetchStock(symbol);
-        if (fresh) {
-          latestMkt = fresh;
-        }
+        if (fresh) latestMkt = fresh;
       }
 
+      // Calculate Temperature Score (HEAVY)
+      const temp = YC.indicators.temperatureScore({ 
+        price: latestMkt.price, high52w: latestMkt.high52w, low52w: latestMkt.low52w, 
+        ma200: latestMkt.ma200, ma50: latestMkt.ma50, history: latestMkt.history 
+      });
+      const cls = YC.indicators.classify(temp);
+
+      // Update Top Badge
+      const badge = document.getElementById('detail-temp-badge');
+      if (badge) {
+        badge.className = `temp-badge ${cls.cls}`;
+        badge.innerHTML = `${temp} ${cls.icon}`;
+        badge.style.background = '';
+        badge.classList.remove('text-muted');
+      }
+
+      // Update Analysis Box
+      const tBox = document.getElementById('detail-temp-box');
+      if (tBox) {
+        tBox.style.opacity = '1';
+        tBox.innerHTML = `
+          ${YC.temperature.renderMiniGauge(temp, 52)}
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px">溫度診斷分析</div>
+            <div style="font-size:15px;font-weight:800;color:${cls.color}">${cls.label} (${temp}/100)</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.4">${cls.desc || '綜合 RSI 超買超賣、MA 均線乖離與 52 週位階進行測算'}</div>
+          </div>
+        `;
+      }
+
+      // 1. Render Chart
       YC.charting.renderPriceChart('detail-chart-container', latestMkt.history || [], {
         ma50: true, ma200: true,
         color: latestMkt.changePct >= 0 ? 'var(--pos)' : 'var(--neg)'
       });
 
-      // Fetch and render backtest data asynchronously
+      // 2. Heavy Indicators Calculation & Update
+      const histPrices = latestMkt.history?.map(h => h.c) || [];
+      const mddVal = YC.indicators.calculateMDD(histPrices);
+      const rsiVal = latestMkt.history?.length >= 14 ? YC.indicators.calculateRSI(latestMkt.history.map(h => h.c || h)).toFixed(0) : '--';
+      const ibsVal = YC.indicators.calculateIBS(latestMkt.price, latestMkt.dayHigh, latestMkt.dayLow);
+      
+      const mddEl = document.getElementById('detail-mdd-inline');
+      if (mddEl) {
+        mddEl.textContent = `MDD -${mddVal}%`;
+        if (parseFloat(mddVal) >= 30) {
+          mddEl.style.background = 'rgba(0,212,170,0.15)';
+          mddEl.style.color = 'var(--neg)';
+          mddEl.innerHTML += ' ⚠️高波動';
+        }
+      }
+      
+      const rsiEl = document.getElementById('detail-rsi-val');
+      if (rsiEl && rsiVal !== '--') {
+        rsiEl.textContent = rsiVal;
+        rsiEl.parentElement.style.color = rsiVal <= 30 ? 'var(--neg)' : rsiVal >= 70 ? 'var(--pos)' : 'inherit';
+      }
+
+      const ma200Dev = latestMkt.ma200 && latestMkt.price ? ((latestMkt.price - latestMkt.ma200) / latestMkt.ma200 * 100).toFixed(2) : null;
+      const maDevEl = document.getElementById('detail-ma200-dev');
+      if (maDevEl && ma200Dev !== null) {
+        maDevEl.style.color = parseFloat(ma200Dev) >= 0 ? 'var(--pos)' : 'var(--neg)';
+        maDevEl.textContent = `${parseFloat(ma200Dev) >= 0 ? '+' : ''}${ma200Dev}%`;
+      }
+
+      const ibsEl = document.getElementById('detail-ibs-val');
+      if (ibsEl && ibsVal !== null) {
+        const ibsStr = ibsVal.toFixed(2);
+        let ibsColor = 'inherit';
+        if (ibsVal <= 0.2) ibsColor = 'var(--neg)';
+        else if (ibsVal >= 0.8) ibsColor = 'var(--pos)';
+        ibsEl.textContent = ibsStr;
+        ibsEl.parentElement.style.color = ibsColor;
+      }
+
+      const volRatio = latestMkt.volume && latestMkt.avgVolume ? (latestMkt.volume / latestMkt.avgVolume).toFixed(2) : null;
+      const volEl = document.getElementById('detail-vol-ratio');
+      if (volEl && volRatio !== null) {
+        volEl.textContent = `${volRatio}x`;
+        volEl.parentElement.style.color = parseFloat(volRatio) > 1.5 ? 'var(--t2)' : 'inherit';
+      }
+
+      // 3. Fetch Backtest
       YC.api.getBacktest(symbol, 2).then(bt => {
         const btContainer = document.getElementById('detail-backtest-container');
         if (!btContainer || !bt) return;
-
         const r = bt.rating || {};
         const stats = bt.statistics || {};
         const winRate30 = stats.winRate?.['30d'] || 'N/A';
@@ -553,20 +627,13 @@ YC.stocks = (() => {
                  <div class="detail-cell-val" style="font-size:14px;color:var(--neg)">${mdd30 !== 'N/A' ? '-' + mdd30 : mdd30}</div>
                </div>
             </div>
-            ${r.reason && r.reason.length > 0 ? `
-              <div style="font-size:11px;color:var(--text-3);line-height:1.4;margin-top:2px;">
-                💡 依據：${r.reason.join('、')}
-              </div>
-            ` : ''}
-          </div>
-        `;
+          </div>`;
       }).catch(() => {
         const btContainer = document.getElementById('detail-backtest-container');
-        if (btContainer) {
-          btContainer.innerHTML = `<div style="font-size:12px;color:var(--t3);padding:10px;background:var(--bg-card);border-radius:12px;">無法載入回測數據</div>`;
-        }
+        if (btContainer) btContainer.innerHTML = '';
       });
-    }, 20);
+    }, 400); // Wait for the full slide-up animation (350ms) to complete first
+
 
   }
 
@@ -623,7 +690,7 @@ YC.stocks = (() => {
       shares, costPrice, totalFees, targetWeight: 0, currency: wItem.type.includes('tw') ? 'TWD' : 'USD',
     });
     YC.portfolio.addToWatchlist(wItem);
-    document.getElementById('stock-detail-modal')?.remove();
+    closeModal('stock-detail-modal');
     renderList();
   }
 
@@ -640,10 +707,10 @@ YC.stocks = (() => {
     const overlay = document.createElement('div');
     overlay.id = 'edit-holding-modal';
     overlay.className = 'modal-overlay';
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay); });
     overlay.innerHTML = `
     <div class="modal-sheet">
-      <div class="modal-drag"></div>
+      <div class="modal-drag" onclick="YC.stocks.closeModal('edit-holding-modal')" style="cursor:pointer"></div>
       <div style="font-size:18px;font-weight:800;margin-bottom:4px">✏️ 編輯持股</div>
       <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">${holding.name} · ${symbol.replace('.TW', '')}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
@@ -665,7 +732,7 @@ YC.stocks = (() => {
         </div>
       </div>
       <div style="display:flex;gap:10px">
-        <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('edit-holding-modal').remove()">取消</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="YC.stocks.closeModal('edit-holding-modal')">取消</button>
         <button class="btn btn-primary" style="flex:1" onclick="YC.stocks.saveEditHolding('${symbol}')">儲存更改</button>
       </div>
     </div>`;
@@ -682,7 +749,7 @@ YC.stocks = (() => {
     const costPrice = shares > 0 ? (totalBuyAmt / shares) : 0;
     
     YC.state.updateHolding(symbol, { shares, costPrice, totalFees, targetWeight });
-    document.getElementById('edit-holding-modal')?.remove();
+    closeModal('edit-holding-modal');
     YC.dashboardPage?.refreshData();
   }
 
@@ -713,7 +780,7 @@ YC.stocks = (() => {
   function removeStock(symbol) {
     if (confirm(`確定要將 ${symbol} 從清單中刪除嗎？\n如果是已持有的股票，持股資料也會一併被移除。`)) {
       YC.portfolio.removeFromWatchlist(symbol);
-      document.getElementById('stock-detail-modal')?.remove();
+      closeModal('stock-detail-modal');
       renderList();
     }
   }
@@ -723,6 +790,6 @@ YC.stocks = (() => {
   return {
     render, refresh, openDetail, openAddModal, addToPortfolio,
     addToPortfolioFromDetail, openEditHoldingModal, saveEditHolding, filterIndustry,
-    saveNote, removeStock
+    saveNote, removeStock, closeModal
   };
 })();

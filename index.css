@@ -1407,6 +1407,11 @@ body {
   z-index: 500;
   display: flex;
   align-items: flex-end;
+  transition: opacity 0.3s ease;
+}
+
+.modal-overlay.closing {
+  opacity: 0 !important;
 }
 
 .modal-sheet {
@@ -1435,6 +1440,20 @@ body {
   to {
     transform: translateY(0)
   }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(0)
+  }
+
+  to {
+    transform: translateY(100%)
+  }
+}
+
+.modal-sheet.closing {
+  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
 }
 
 /* ?�?� Portfolio Symbol List ?�?�?�?�?�?�?�?�?�?�?�?� */

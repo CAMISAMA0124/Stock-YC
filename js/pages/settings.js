@@ -90,8 +90,8 @@ YC.settingsPage = (() => {
                         <input type="number" id="set-goal-amt" class="form-input" value="${settings.goalAmount}">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">預計達成日期</label>
-                        <input type="date" id="set-goal-date" class="form-input" value="${settings.goalDate || ''}">
+                        <label class="form-label">目前年齡</label>
+                        <input type="number" id="set-current-age" class="form-input" value="${settings.currentAge || 30}" min="0" max="120">
                     </div>
                 </div>
             </div>
@@ -147,7 +147,7 @@ YC.settingsPage = (() => {
       apiKey: document.getElementById('set-api-key-gemini').value.trim(), // Keep for legacy
       goalName: document.getElementById('set-goal-name').value,
       goalAmount: parseFloat(document.getElementById('set-goal-amt').value) || 0,
-      goalDate: document.getElementById('set-goal-date').value,
+      currentAge: parseInt(document.getElementById('set-current-age').value) || 30,
     };
 
     YC.state.setSettings(newSettings);

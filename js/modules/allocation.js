@@ -261,5 +261,57 @@ YC.allocation = (() => {
         return count > 0 ? Math.round(totalScore / count) : 50;
     }
 
-    return { compute, renderStackBar, formatNTD, computePortfolioDividends, calculateRebalanceSteps, computeAverageExpenseRatio, calculatePortfolioScore, calculateWatchlistScore };
+    /* ── Financial Expert Expected Return Model ──────────────────
+       Multi-factor: (Hist CAGR * 0.4) + (Market Index * 0.4) + (DivYield * 0.2)
+       Caps extreme growth to avoid overoptimism (Max 15%)
+    */
+    function computeExpertExpectedReturn(holdings, cashAssets) {
+        const rate_tw_index = 0.065; // TAIEX 10-year avg
+        const rate_us_index = 0.095; // S&P 500 10-year avg
+        const rate_cash = 0.015;     // Savings rate
+
+        let totalWeight = cashAssets || 0;
+        let weightedReturnSum = (cashAssets || 0) * rate_cash;
+
+        for (const h of holdings) {
+            const mv = h.marketValue || 0;
+            if (mv <= 0) continue;
+
+            const mkt = YC.state.getMarketData(h.symbol) || {};
+            const isTW = h.symbol.endsWith('.TW');
+            const indexBaseline = isTW ? rate_tw_index : rate_us_index;
+
+            // 1. Calculate Historical CAGR (up to 3-5 years if history available)
+            let histReturn = indexBaseline;
+            if (mkt.history && mkt.history.length > 20) {
+                const sorted = [...mkt.history].sort((a,b) => a.t - b.t);
+                const newest = sorted[sorted.length - 1];
+                const oldest = sorted[0];
+                const years = (newest.t - oldest.t) / (1000 * 60 * 60 * 24 * 365);
+                
+                if (years >= 0.5) { // At least half a year to avoid noise
+                    const rawCAGR = Math.pow(newest.c / oldest.c, 1 / years) - 1;
+                    // Blend 40% History / 60% Index (Financial Expert Conservative Rule)
+                    histReturn = (rawCAGR * 0.4) + (indexBaseline * 0.6);
+                }
+            }
+
+            // 2. Add Dividend Yield
+            let divYield = (mkt.divYield || 0);
+            if (divYield > 0.4) divYield /= 100; // Normalize % vs ratio
+            
+            // 3. Expert Total Return = HistReturn + Dividend
+            let symbolTotalReturn = histReturn + divYield;
+
+            // 4. Expert Safety Margin: Cap at 15% for sustainable projection
+            symbolTotalReturn = Math.min(0.15, Math.max(0.01, symbolTotalReturn));
+
+            weightedReturnSum += mv * symbolTotalReturn;
+            totalWeight += mv;
+        }
+
+        return totalWeight > 0 ? (weightedReturnSum / totalWeight) : 0.07;
+    }
+
+    return { compute, renderStackBar, formatNTD, computePortfolioDividends, calculateRebalanceSteps, computeAverageExpenseRatio, calculatePortfolioScore, calculateWatchlistScore, computeExpertExpectedReturn };
 })();

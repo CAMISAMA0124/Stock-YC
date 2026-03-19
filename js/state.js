@@ -19,7 +19,7 @@ YC.state = (() => {
       adjustCoeff: 0.8,         // Sensitivity 0~1
       goalName: '財務自由',
       goalAmount: 10000000,
-      goalDate: '',
+      currentAge: 30,
       monthlyInvest: 0,
       aiProvider: 'gemini',     // openai | gemini | claude
       apiKey: '',

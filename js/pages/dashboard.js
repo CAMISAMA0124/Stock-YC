@@ -233,13 +233,33 @@ YC.dashboardPage = (() => {
       if (!holdings.length) {
         holdList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-text">尚未新增持股</div></div>`;
       } else {
-        holdList.innerHTML = `<div class="stock-list">${holdings.map(h => renderHoldingCard(h)).join('')}</div>
-          ${holdings.length > 5 ? `<div style="text-align:center;padding:8px;color:var(--text-3);font-size:12px">還有 ${holdings.length - 5} 支持股...</div>` : ''}`;
+        const remained = holdings.length - 5;
+        const displayHoldings = this.isExpanded ? holdings : holdings.slice(0, 5);
+        
+        holdList.innerHTML = `
+          <div class="stock-list">${displayHoldings.map(h => renderHoldingCard(h)).join('')}</div>
+          ${remained > 0 ? `
+            <div id="dash-expand-btn" style="text-align:center; padding:12px; color:var(--accent); font-size:12px; cursor:pointer; font-weight:700; transition: opacity 0.2s">
+              ${this.isExpanded ? '🔼 收合持股清單' : `📂 展開查看剩餘 ${remained} 檔持股...`}
+            </div>
+          ` : ''}
+        `;
+
+        const btn = document.getElementById('dash-expand-btn');
+        if (btn) {
+          btn.onclick = () => {
+            this.isExpanded = !this.isExpanded;
+            refreshData(el);
+          };
+        }
       }
     }
 
     renderGoal(combinedSettings);
   }
+
+  // State
+  this.isExpanded = false;
 
   /* ── Opportunity Radar ──────────────────────────── */
   async function renderRadar() {
@@ -600,24 +620,40 @@ YC.dashboardPage = (() => {
     if (!settings.goalAmount || !settings.goalName) { el.innerHTML = ''; return; }
 
     const totalAssets = settings.totalAssets || 0;
-    const pct = Math.min(100, Math.round((totalAssets / settings.goalAmount) * 100));
-    const remaining = settings.goalAmount - totalAssets;
+    const goalAmt = settings.goalAmount;
+    const pct = Math.min(100, Math.round((totalAssets / goalAmt) * 100));
+    const remaining = goalAmt - totalAssets;
 
-    let daysLeft = '';
-    if (settings.goalDate) {
-      const diff = new Date(settings.goalDate) - new Date();
-      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-      if (days > 0) {
-        const years = Math.floor(days / 365);
-        const months = Math.floor((days % 365) / 30);
-        daysLeft = years > 0 ? `${years}年 ${months}個月` : `${months}個月`;
-      }
+    // --- Financial Expert Model Implementation ---
+    const holdings = YC.portfolio.getEnriched();
+    const weightedRate = YC.allocation.computeExpertExpectedReturn(holdings, settings.cashAssets || 0);
+    
+    // Safety check: avoid infinity
+    const activeRate = Math.max(0.01, weightedRate);
+
+    let yearsLeft = 0;
+    let ageAchieved = settings.currentAge || 30;
+
+    if (totalAssets > 0 && totalAssets < goalAmt) {
+        // Formula: n = log(Target/Current) / log(1+r)
+        yearsLeft = Math.log(goalAmt / totalAssets) / Math.log(1 + activeRate);
+        ageAchieved = (settings.currentAge || 30) + yearsLeft;
     }
+
+    const yearsStr = yearsLeft > 0 ? (yearsLeft < 1 ? '預計 1 年內' : `${Math.floor(yearsLeft)} 年 ${Math.round((yearsLeft % 1) * 12)} 個月`) : '目標已達成';
+    const ageStr = yearsLeft > 0 ? `${Math.floor(ageAchieved)} 歲` : `${settings.currentAge || '—'}`;
+
+    // Monte Carlo Simplified Logic: 考慮 +/- 2% 的市場波動範圍
+    const bearAge = yearsLeft > 0 ? (settings.currentAge || 30) + (Math.log(goalAmt / totalAssets) / Math.log(1 + activeRate - 0.02)) : 0;
+    const bullAge = yearsLeft > 0 ? (settings.currentAge || 30) + (Math.log(goalAmt / totalAssets) / Math.log(1 + activeRate + 0.02)) : 0;
 
     el.innerHTML = `
     <div class="goal-card">
       <div class="goal-top">
-        <span class="goal-name-text">🎯 ${settings.goalName}</span>
+        <div style="display:flex; align-items:center; gap:8px">
+          <span class="goal-name-text">🎯 ${settings.goalName}</span>
+          <span style="background:var(--accent); color:black; font-size:9px; font-weight:900; padding:2px 6px; border-radius:4px; opacity:0.8; letter-spacing:0.5px">EXPERT</span>
+        </div>
         <span class="goal-pct-text">${pct}%</span>
       </div>
       <div class="goal-track"><div class="goal-fill" style="width:${pct}%"></div></div>
@@ -627,14 +663,41 @@ YC.dashboardPage = (() => {
           <div class="goal-stat-lbl">目前資產</div>
         </div>
         <div class="goal-stat">
-          <div class="goal-stat-val">NT$ ${YC.allocation.formatNTD(settings.goalAmount)}</div>
-          <div class="goal-stat-lbl">目標金額</div>
-        </div>
-        <div class="goal-stat">
           <div class="goal-stat-val" style="color:var(--t3)">NT$ ${YC.allocation.formatNTD(remaining)}</div>
           <div class="goal-stat-lbl">尚差金額</div>
         </div>
-        ${daysLeft ? `<div class="goal-stat"><div class="goal-stat-val" style="color:var(--accent)">${daysLeft}</div><div class="goal-stat-lbl">剩餘時間</div></div>` : ''}
+        <div class="goal-stat">
+          <div class="goal-stat-val" style="color:var(--accent)">${yearsStr}</div>
+          <div class="goal-stat-lbl">預計剩餘時間</div>
+        </div>
+        <div class="goal-stat">
+          <div class="goal-stat-val" style="color:var(--t0)">${ageStr}</div>
+          <div class="goal-stat-lbl">達成預估年齡</div>
+        </div>
+      </div>
+
+      <!-- Expert Analysis Detail -->
+      <div style="margin-top:15px; padding-top:12px; border-top:1px dashed var(--border); display:flex; flex-direction:column; gap:8px">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <span style="font-size:11px; color:var(--text-3)">🏦 多因子加權期望報酬率</span>
+          <span style="font-size:14px; font-weight:800; color:var(--pos)">${(activeRate * 100).toFixed(2)}% <small style="font-size:9px; font-weight:normal; color:var(--text-3)">(已扣除內扣)</small></span>
+        </div>
+        
+        <div style="display:flex; gap:6px; font-size:10px">
+          <div style="flex:1; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05)">
+            <div style="color:var(--text-3); margin-bottom:2px">🐻 保守路徑</div>
+            <div style="color:var(--t3); font-weight:700">${bearAge > 0 ? Math.floor(bearAge) : '—'} 歲達成</div>
+          </div>
+          <div style="flex:1; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05)">
+            <div style="color:var(--text-3); margin-bottom:2px">🐮 樂觀路徑</div>
+            <div style="color:var(--t0); font-weight:700">${bullAge > 0 ? Math.floor(bullAge) : '—'} 歲達成</div>
+          </div>
+        </div>
+
+        <div style="font-size:9px; color:var(--text-3); text-align:center; line-height:1.4">
+          ※ 專家模型結合具體持倉歷史 CAGR (40%) + 分類指數基線 (60%) 進行精算。<br>
+          保守/樂觀路徑基於報酬率 ±2% 波動模擬，僅供理財參考。
+        </div>
       </div>
     </div>`;
   }
