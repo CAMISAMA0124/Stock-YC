@@ -1689,3 +1689,27 @@ input.error {
     transform: translateX(4px);
   }
 }
+
+/* Tooltip Hint Trigger */
+.hint-trigger {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: 5px;
+  font-weight: normal;
+  cursor: pointer;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.hint-trigger:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-1);
+}
+
+.hint-trigger:active {
+  transform: scale(0.9);
+  background: var(--accent-dim);
+}

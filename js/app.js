@@ -159,7 +159,11 @@ YC.app = (() => {
         setInterval(() => refreshData(), 300000);
     }
 
-    return { init, navigate, refreshData };
+    function showHint(title, msg) {
+        alert(`${title}\n\n${msg}`);
+    }
+
+    return { init, navigate, refreshData, showHint };
 })();
 
 // Boot YC
