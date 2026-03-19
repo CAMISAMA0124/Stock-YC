@@ -1,0 +1,279 @@
+/* ================================================
+   ai-analysis.js — AI Stock Analysis Module
+   Supports OpenAI, Google Gemini, Anthropic Claude
+   ================================================ */
+
+YC.ai = (() => {
+
+    /* ── Build prompt for a single holding ──────────────── */
+    function buildHoldingPrompt(holding, backtestStr = '尚無回測數據可用') {
+        const { name, symbol, price, currency, changePct, tempScore, label, gainPct, shares, pe, divYield } = holding;
+        const priceStr = price ? `${currency === 'TWD' ? 'NT$' : '$'}${price?.toFixed(2)}` : '未知';
+        const changeStr = changePct != null ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%` : '未知';
+        const tempInfo = tempScore != null ? `${tempScore}/100 (${label})` : '未知';
+        const gainStr = gainPct != null ? `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}%` : '未知';
+        const myNote = YC.state.getNote(symbol);
+
+        return `你是一位專業的證券投資分析師，請針對以下標的進行趨勢分析、基本面診斷與投資建議：
+
+【標的基本資訊】
+- 名稱：${name} (${symbol.replace('.TW', '')})
+- 目前價格：${priceStr} | 漲跌：${changeStr}
+- 溫度計評分：${tempInfo} (註：0=極低估，100=極高估)
+- 本益比 (P/E)：${pe ? pe.toFixed(1) + 'x' : '未知'}
+- 股息殖利率：${divYield ? divYield.toFixed(2) + '%' : '未知'}
+- 我的報酬率：${gainStr} | 持股數：${shares || '暫未持有'}
+- IBS 短線指標：${price && holding.dayHigh && holding.dayLow ? YC.indicators.calculateIBS(price, holding.dayHigh, holding.dayLow)?.toFixed(2) || '未知' : '未知'} (註: <=0.2易反彈, >=0.8易回檔)
+
+【回測與量化指標】(過去2年數據)
+${backtestStr}
+
+【我的投資備註】
+${myNote || '(目前無備註)'}
+
+【請針對以下內容分析】
+1. **趨勢判定與建議**：加碼 / 持有 / 減碼 (請根據溫度計與回測趨勢判斷，原因為何？)
+2. **財報與基本面關鍵點**：簡述獲利動能、P/E 或殖利率的意義。
+3. **對整體配置的影響**：是否適合作為核心持股或短期操作？
+4. **風險提示**：注意事項。
+
+請用繁體中文，格式清晰簡直，重點條列，總結在 250 字內。`;
+    }
+
+    /* ── Build portfolio summary prompt ────────────────── */
+    function buildPortfolioPrompt(holdings, sentimentScore) {
+        const heatLabel = sentimentScore <= 30 ? '極冷' : sentimentScore <= 55 ? '適中' : sentimentScore <= 75 ? '偏熱' : '極熱';
+        const names = holdings.map(h => `${h.name}(溫度${h.tempScore || '?'})`).join('、');
+        return `你是一位資深理財分析師，請針對以下投資組合給予專業的全局建議。
+
+【市場環境】當前市場情緒：${sentimentScore}/100 (${heatLabel})
+【持倉標的】${names}
+
+請用繁體中文，針對以下分析：
+1. 整體風險配置建議 (1-2段)
+2. 目前�    /* ── Call Google Gemini API ───────────────────────── */
+    async function callGemini(prompt, apiKey, onChunk) {
+        // v1 is the stable endpoint for gemini-1.5 series
+        const model = 'gemini-1.5-flash';
+        const url = `https://generativelanguage.googleapis.com/v1/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        });
+        if (!res.ok) {
+            let errorText = '';
+            try { 
+                const err = await res.json();
+                errorText = err?.error?.message || JSON.stringify(err);
+            } catch(e) {
+                errorText = await res.text();
+            }
+            // Fallback trial for v1beta if v1 fails with 404 (some legacy keys)
+            if (res.status === 404) {
+               return callGeminiV1Beta(prompt, apiKey, onChunk);
+            }
+            throw new Error(`Gemini API 錯誤 (${res.status}): ${errorText}`);
+        }
+        return readStream(res, onChunk, 'gemini');
+    }
+
+    /* ── Fallback for v1beta ──────────────────────────── */
+    async function callGeminiV1Beta(prompt, apiKey, onChunk) {
+        const model = 'gemini-1.5-flash';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err?.error?.message || `Gemini v1beta Error ${res.status}`);
+        }
+        return readStream(res, onChunk, 'gemini');
+    }
+
+    /* ── Stream reader (SSE) ───────────────────────────── */
+    async function readStream(res, onChunk, provider) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+        let buffer = '';
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // keep incomplete last line
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    if (!trimmedLine || !trimmedLine.startsWith('data:')) continue;
+                    
+                    const data = trimmedLine.slice(5).trim();
+                    if (data === '[DONE]') break;
+                    try {
+                        const json = JSON.parse(data);
+                        let chunk = '';
+                        // Generic path for Gemini/OpenAI SSE format
+                        chunk = json?.candidates?.[0]?.content?.parts?.[0]?.text || 
+                                json?.choices?.[0]?.delta?.content || 
+                                json?.delta?.text || '';
+                        
+                        if (chunk) {
+                            fullText += chunk;
+                            if (onChunk) onChunk(chunk, fullText);
+                        }
+                    } catch (e) {
+                        // Metadata or partial JSON chunks - ignore
+                    }
+                }
+            }
+        } catch(e) {
+            throw e;
+        }
+        return fullText;
+    }
+
+    /* ── Main analyze function ────────────────────────── */
+    async function analyze(holding, { onChunk, onDone, onError } = {}) {
+        const settings = YC.state.get().settings;
+        const apiKey = settings.apiKeyGemini || settings.apiKey;
+
+        if (!apiKey) {
+            if (onError) onError('請先設定 Gemini API Key');
+            return;
+        }
+
+        let backtestStr = '尚無回測數據可用';
+        try {
+            const bt = await YC.api.getBacktest(holding.symbol, 2);
+            if (bt && bt.rating) {
+                const s = bt.statistics || {};
+                const r = bt.rating;
+                backtestStr = `- 持股評等: ${r.label}\n- 近30日上漲機率: ${s.winRate?.['30d'] || '未知'}\n- 30日平均報酬率: ${s.avgReturn?.['30d'] || '未知'}\n- 評分依據: ${(r.reason || []).join('、')}`;
+            }
+        } catch (e) {
+            console.warn('AI failed to load backtest data for prompt', e);
+        }
+
+        const prompt = buildHoldingPrompt(holding, backtestStr);
+        try {
+            const text = await callGemini(prompt, apiKey, onChunk);
+            if (!text && !onChunk) throw new Error('AI 未回傳內容');
+            if (onDone) onDone(text);
+            return text;
+        } catch (e) {
+            if (onError) onError(`AI 分析失敗：${e.message}`);
+            return `Error: ${e.message}`;
+        }
+    }
+
+    /* ── Analyze full portfolio ──────────────────── */
+    async function analyzePortfolio(holdings, { onChunk, onDone, onError } = {}) {
+        const settings = YC.state.get().settings;
+        const apiKey = settings.apiKeyGemini || settings.apiKey;
+
+        if (!apiKey) { if (onError) onError('請先設定 Gemini API Key'); return; }
+
+        const sentiment = YC.state.get().sentiment;
+        const score = sentiment?.composite || 50;
+        const prompt = buildPortfolioPrompt(holdings, score);
+        try {
+            const text = await callGemini(prompt, apiKey, onChunk);
+            if (onDone) onDone(text);
+            return text;
+        } catch (e) {
+            if (onError) onError(`AI 分析失敗：${e.message}`);
+        }
+    }
+
+    /* ── Test API connection ─────────────────────────── */
+    async function testConnection(provider, apiKey) {
+        const testPrompt = '請回覆「連線成功」即可。';
+        try {
+            const result = await callGemini(testPrompt, apiKey, null);
+            return { ok: true, message: result.trim() || '連線成功' };
+        } catch (e) {
+            return { ok: false, message: e.message };
+        }
+    }
+
+    return { analyze, analyzePortfolio, testConnection };
+})();2);
+            if (bt && bt.rating) {
+                const s = bt.statistics || {};
+                const r = bt.rating;
+                backtestStr = `- 持股評等: ${r.label}\n- 近30日上漲機率: ${s.winRate?.['30d'] || '未知'}\n- 30日平均報酬率: ${s.avgReturn?.['30d'] || '未知'}\n- 評分依據: ${(r.reason || []).join('、')}`;
+            }
+        } catch (e) {
+            console.warn('AI failed to load backtest data for prompt', e);
+        }
+
+        const prompt = buildHoldingPrompt(holding, backtestStr);
+        try {
+            let text;
+            if (provider === 'openai') text = await callOpenAI(prompt, apiKey, onChunk);
+            else if (provider === 'gemini') text = await callGemini(prompt, apiKey, onChunk);
+            else if (provider === 'claude') text = await callClaude(prompt, apiKey, onChunk);
+            else throw new Error('不支援的 AI 供應商: ' + provider);
+            
+            if (!text && !onChunk) throw new Error('AI 未回傳內容');
+            
+            if (onDone) onDone(text);
+            return text;
+        } catch (e) {
+            const msg = `AI 分析失敗：${e.message}`;
+            console.error('AI Analysis Error Detail:', e);
+            if (onError) onError(msg);
+            return msg;
+        }
+    }
+
+    /* ── Analyze full portfolio ──────────────────── */
+    async function analyzePortfolio(holdings, { onChunk, onDone, onError } = {}) {
+        const settings = YC.state.get().settings;
+        const provider = settings.aiProvider || 'gemini';
+        
+        let apiKey = settings.apiKey;
+        if (provider === 'openai' && settings.apiKeyOpenAI) apiKey = settings.apiKeyOpenAI;
+        else if (provider === 'gemini' && settings.apiKeyGemini) apiKey = settings.apiKeyGemini;
+        else if (provider === 'claude' && settings.apiKeyClaude) apiKey = settings.apiKeyClaude;
+
+        if (!apiKey) { if (onError) onError('請先設定 API Key'); return; }
+
+        const sentiment = YC.state.get().sentiment;
+        const score = sentiment?.composite || 50;
+        const prompt = buildPortfolioPrompt(holdings, score);
+        try {
+            let text;
+            if (provider === 'openai') text = await callOpenAI(prompt, apiKey, onChunk);
+            else if (provider === 'gemini') text = await callGemini(prompt, apiKey, onChunk);
+            else text = await callClaude(prompt, apiKey, onChunk);
+            if (onDone) onDone(text);
+            return text;
+        } catch (e) {
+            const msg = `AI 分析失敗：${e.message}`;
+            if (onError) onError(msg);
+        }
+    }
+
+    /* ── Test API connection ─────────────────────────── */
+    async function testConnection(provider, apiKey) {
+        const testPrompt = '請用1句話中文回覆「連線成功」即可。';
+        try {
+            let result = '';
+            if (provider === 'openai') result = await callOpenAI(testPrompt, apiKey, null);
+            else if (provider === 'gemini') result = await callGemini(testPrompt, apiKey, null);
+            else result = await callClaude(testPrompt, apiKey, null);
+            return { ok: true, message: result.trim() || '連線成功' };
+        } catch (e) {
+            return { ok: false, message: e.message };
+        }
+    }
+
+    return { analyze, analyzePortfolio, testConnection };
+})();

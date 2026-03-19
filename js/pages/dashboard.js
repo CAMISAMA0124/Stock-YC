@@ -595,6 +595,11 @@ YC.dashboardPage = (() => {
     });
     const cls = YC.indicators.classify(temp);
 
+    const rate = YC.state.get().exchangeRate || 31.5;
+    const pnlTWDHtml = (!isTW && totalPnl !== 0) 
+      ? `<span style="font-size:9px;opacity:0.7;margin-left:2px">(TWD: ${pnlSign}${Math.round(Math.abs(totalPnl) * rate).toLocaleString()})</span>` 
+      : '';
+
     return `
     <div class="stock-card ${cls.cardClass || 'tc1'}" onclick="YC.stocks.openDetail('${h.symbol}')">
       <div class="stock-avatar av2" style="width:42px;height:42px;font-size:12px">${YC.indicators.getInitials(h.name)}</div>
@@ -607,8 +612,10 @@ YC.dashboardPage = (() => {
           <span style="font-size:12px;font-weight:600;color:${dayColor}">${daySign}${curSym}${Math.abs(dayPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}<span style="font-size:10px;margin-left:2px">(${mktChangeSign}${mkt.changePct?.toFixed(2)}%)</span></span>
         </div>
         <!-- Cost P&L sub-line -->
-        <div style="font-size:10px;color:${pnlColor};margin-top:1px">
-          帳面 ${pnlSign}${curSym}${Math.abs(totalPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })} <span style="opacity:0.8">(${pnlSign}${totalPnlPct.toFixed(2)}%)</span>
+        <div style="font-size:10px;color:${pnlColor};margin-top:1px;display:flex;align-items:center;flex-wrap:wrap">
+          <span>帳面 ${pnlSign}${curSym}${Math.abs(totalPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
+          ${pnlTWDHtml}
+          <span style="opacity:0.8;margin-left:4px">(${pnlSign}${totalPnlPct.toFixed(2)}%)</span>
         </div>
       </div>
       <div class="temp-badge ${cls.cls}" style="font-size:11px;padding:4px 8px;align-self:flex-start">${temp}</div>

@@ -76,11 +76,12 @@ YC.app = (() => {
             ];
             const uniqueSymbols = [...new Set(symbols)];
 
-            // Parallel fetch: Batch for all + Full History for SPY (essential for sentiment logic)
+            // Parallel fetch: Batch for all + Full History for SPY + Exchange Rate
             console.log(`[App] Refreshing data for ${uniqueSymbols.length} symbols...`);
-            const [batchRes, spyRes] = await Promise.allSettled([
+            const [batchRes, spyRes, rateRes] = await Promise.allSettled([
                 uniqueSymbols.length ? YC.api.batchQuotes(uniqueSymbols) : Promise.resolve({}),
-                YC.api.getYahooQuote('SPY')
+                YC.api.getYahooQuote('SPY'),
+                YC.api.getExchangeRate()
             ]);
 
             // Sync Batch Data
