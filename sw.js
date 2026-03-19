@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yc-ark-v4';
+const CACHE_NAME = 'yc-ark-v5';
 const ASSETS = [
   './',
   './index.html',
