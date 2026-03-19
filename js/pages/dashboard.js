@@ -619,7 +619,7 @@ YC.dashboardPage = (() => {
         <div style="font-size:10px;color:${pnlColor};margin-top:1px;display:flex;align-items:center;flex-wrap:wrap">
           <span>帳面 ${pnlSign}${curSym}${Math.abs(totalPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
           ${pnlTWDHtml}
-          <span style="opacity:0.8;margin-left:4px">(${buildPnlPctStr(totalPnlPct)})</span>
+          <span style="margin-left:5px">(${buildPnlPctStr(totalPnlPct)})</span>
         </div>
       </div>
       <div class="temp-badge ${cls.cls}" style="font-size:11px;padding:4px 8px;align-self:flex-start">${temp}</div>
