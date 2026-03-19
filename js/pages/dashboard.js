@@ -581,7 +581,11 @@ YC.dashboardPage = (() => {
     const totalPnlPct = cost ? (totalPnl / cost * 100) : 0;
     const daySign = dayPnl > 0 ? '+' : (dayPnl < 0 ? '-' : '');
     const pnlSign = totalPnl > 0 ? '+' : (totalPnl < 0 ? '-' : '');
-    const mktChangeSign = (mkt.changePct || 0) >= 0 ? '+' : '';
+    
+    // For percentage strings: Only prefix "+" if positive, negative already has "-" from toFixed()
+    const buildPctStr = (val) => (val > 0 ? '+' : '') + val.toFixed(2) + '%';
+    const buildPnlPctStr = (val, sign) => (val > 0 ? '+' : (val < 0 ? '' : '')) + val.toFixed(2) + '%';
+    
     const dayColor = dayPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
     const pnlColor = totalPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
     const temp = YC.indicators.temperatureScore({ 
@@ -609,13 +613,13 @@ YC.dashboardPage = (() => {
         <!-- Market Value -->
         <div style="display:flex;align-items:baseline;gap:6px;margin-top:3px">
           <span style="font-size:13px;font-weight:700">${curSym}${mv.toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
-          <span style="font-size:12px;font-weight:600;color:${dayColor}">${daySign}${curSym}${Math.abs(dayPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}<span style="font-size:10px;margin-left:2px">(${mktChangeSign}${mkt.changePct?.toFixed(2)}%)</span></span>
+          <span style="font-size:12px;font-weight:600;color:${dayColor}">${daySign}${curSym}${Math.abs(dayPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}<span style="font-size:10px;margin-left:2px">(${buildPctStr(mkt.changePct)})</span></span>
         </div>
         <!-- Cost P&L sub-line -->
         <div style="font-size:10px;color:${pnlColor};margin-top:1px;display:flex;align-items:center;flex-wrap:wrap">
           <span>帳面 ${pnlSign}${curSym}${Math.abs(totalPnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
           ${pnlTWDHtml}
-          <span style="opacity:0.8;margin-left:4px">(${pnlSign}${totalPnlPct.toFixed(2)}%)</span>
+          <span style="opacity:0.8;margin-left:4px">(${buildPnlPctStr(totalPnlPct)})</span>
         </div>
       </div>
       <div class="temp-badge ${cls.cls}" style="font-size:11px;padding:4px 8px;align-self:flex-start">${temp}</div>
