@@ -436,9 +436,14 @@ YC.stocks = (() => {
 
       <!-- 💎 Value Fundamentals Section -->
       <div style="margin-top:16px">
-        <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;font-weight:600;display:flex;align-items:center;gap:6px">
+        <div style="font-size:12px;color:var(--text-2);margin-bottom:8px;font-weight:600;display:flex;align-items:center;gap:6px">
           <span>💎 價值基礎指標</span>
           <span style="font-size:10px;font-weight:400;color:var(--text-3)">(TTM)</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);line-height:1.5;margin-bottom:12px;background:rgba(255,255,255,0.02);padding:10px 12px;border-radius:8px;border:1px dashed rgba(255,255,255,0.05);">
+          <div style="margin-bottom:4px">📍 <b style="color:var(--text-2)">本益比 (P/E)</b>：買進這間公司，大約幾年能靠本業賺回來。越低估值相對越便宜。</div>
+          <div style="margin-bottom:4px">📍 <b style="color:var(--text-2)">殖利率</b>：買進並持有收息的現金回報率。通常作為下檔風險保護傘指標。</div>
+          <div>📍 <b style="color:var(--text-2)">淨值比 (P/B)</b>：衡量股價相對於公司清算價值的倍數。低於 1 倍代表股價具備安全邊際。</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
           <div class="detail-cell" style="padding:10px">
@@ -455,6 +460,41 @@ YC.stocks = (() => {
           </div>
         </div>
       </div>
+
+      <!-- ⚠️ Cash Flow Analysis Section -->
+      ${(() => {
+        const isETF = wItem.type.includes('etf') || wItem.industry?.toUpperCase().includes('ETF');
+        if (isETF) {
+          return `
+          <div style="margin-top:16px">
+            <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">
+              <span>⚠️ 現金流量表分析</span>
+            </div>
+            <div style="padding:14px 12px;background:rgba(255,255,255,0.02);border-radius:12px;border:1px dashed rgba(255,255,255,0.1);text-align:center;">
+               <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:6px">💡 ETF 不適用此項分析</div>
+               <div style="font-size:11px;color:var(--text-3);line-height:1.5">ETF 為追蹤特定指數之一籃子股票組合，並非獨立營運企業。請關注其內扣費用、折溢價與成分股表現，而非企業現金流。</div>
+            </div>
+          </div>`;
+        }
+
+        const cache = YC.state.get().cfCache || {};
+        const cached = cache[symbol];
+        return `
+        <div style="margin-top:16px">
+          <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">
+            <span>⚠️ 現金流量表分析</span>
+          </div>
+          ${!cached ? `
+          <button id="btn-analyze-cf" onclick="YC.stocks.analyzeCashFlow('${symbol}')"
+            style="width:100%; margin-bottom:12px; padding:16px; background:linear-gradient(135deg, rgba(82, 113, 255, 0.15), rgba(82, 113, 255, 0.05)); border:1px solid rgba(82, 113, 255, 0.3); border-radius:12px; color:var(--text-1); font-size:14px; font-weight:700; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:8px;">
+            <span style="font-size:16px">🔍</span>
+            <span>取得深度現金流分析數據</span>
+          </button>
+          ` : ''}
+          <div id="cf-result-box" style="${!cached ? 'display:none;' : ''}padding:12px;background:var(--bg-input);border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+          </div>
+        </div>`;
+      })()}
 
       <!-- 📊 Historical Backtest Section -->
       <div id="detail-backtest-container" style="margin-top:16px; min-height: 80px;">
@@ -591,14 +631,18 @@ YC.stocks = (() => {
         const mdd30 = stats.maxDrawdown?.['30d'] || 'N/A';
 
         btContainer.innerHTML = `
-          <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:6px">
+          <div style="font-size:12px;color:var(--text-2);margin-bottom:8px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:6px">
             <div>
               <span>🔹 趨勢與勝率回測</span>
-              <span style="font-size:10px;font-weight:400;color:var(--text-3)">(過去 2 年共 ${stats.totalSignals} 次)</span>
+              <span style="font-size:10px;font-weight:400;color:var(--text-3)">(過去 2 年 共 ${stats.totalSignals} 次交易)</span>
             </div>
-            <div style="font-size:10px;color:var(--pos);background:var(--accent-dim);padding:2px 6px;border-radius:4px">
-              ${stats.strategy || '逢低買入'}
+            <div style="font-size:10px;color:var(--pos);background:var(--accent-dim);padding:4px 8px;border-radius:4px">
+              ${r.label || '策略模擬'}
             </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);line-height:1.5;margin-bottom:12px;background:rgba(255,255,255,0.02);padding:10px 12px;border-radius:8px;border:1px dashed rgba(255,255,255,0.05);">
+             <div style="margin-bottom:4px">📍 <b style="color:var(--text-2)">回測評等</b>：基於歷史均線與 RSI 指標的進出場「盲測」結果。適合用來判斷現在進場的歷史機率與預期收益幅度。</div>
+             <div>📍 <b style="color:var(--text-2)">最大回撤 (MDD)</b>：在此策略下，買進後帳面曾「跌過最深」的最大幅度。必須將其視為這筆投資可能遭遇的最壞心理衝擊。</div>
           </div>
           <div style="background:var(--bg-card);border-radius:12px;border:1px solid var(--border);padding:14px;display:flex;flex-direction:column;gap:12px;">
             <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -632,6 +676,13 @@ YC.stocks = (() => {
         const btContainer = document.getElementById('detail-backtest-container');
         if (btContainer) btContainer.innerHTML = '';
       });
+
+      // 4. Render cached Cash Flow if present
+      const cfCache = YC.state.get().cfCache || {};
+      if (cfCache[symbol]) {
+        renderCashFlow(cfCache[symbol], document.getElementById('cf-result-box'));
+      }
+
     }, 400); // Wait for the full slide-up animation (350ms) to complete first
 
 
@@ -787,9 +838,110 @@ YC.stocks = (() => {
 
   function refresh() { renderList(); }
 
+  async function analyzeCashFlow(symbol) {
+    const box = document.getElementById('cf-result-box');
+    const btn = document.getElementById('btn-analyze-cf');
+    if (!box) return;
+
+    if (btn) btn.style.display = 'none';
+    box.style.display = 'block';
+
+    const stateProps = YC.state.get();
+    stateProps.cfCache = stateProps.cfCache || {};
+    let cfData = stateProps.cfCache[symbol];
+
+    if (cfData) {
+      renderCashFlow(cfData, box);
+      return;
+    }
+
+    box.innerHTML = '<div style="text-align:center;color:var(--text-3);font-size:12px;padding:10px 0;">📡 正在取得財政報表資料...</div>';
+
+    try {
+      const res = await fetch('/api/finance/' + symbol);
+      if (!res.ok) throw new Error('Network error');
+      cfData = await res.json();
+      
+      const ocf = cfData.ocf || 0;
+      let icf = cfData.icf || 0;
+      const fcf = cfData.fcf || 0;
+
+      // Impute ICF if missing but FCF and OCF are present (FCF ≈ OCF + ICF_CapEx)
+      if (icf === 0 && fcf !== 0 && ocf !== 0) {
+        icf = fcf - ocf;
+      }
+      
+      cfData._parsed = { ocf, icf, fcf };
+
+      stateProps.cfCache[symbol] = cfData;
+      YC.state.patch({ cfCache: stateProps.cfCache });
+
+      renderCashFlow(cfData, box);
+    } catch(err) {
+      box.innerHTML = '<div style="color:var(--neg);font-size:12px;text-align:center;padding:10px 0;">🔴 取得資料失敗，請稍後再試</div>';
+      if (btn) btn.style.display = 'inline-block';
+    }
+  }
+
+  function renderCashFlow(cfData, box) {
+    const p = cfData._parsed || {};
+    let label = '普通';
+    let color = 'var(--text-1)';
+    let desc = '';
+    const ocf = p.ocf || 0;
+    const icf = p.icf || 0;
+
+    if (ocf > 0 && icf < 0) {
+      label = '🛡️ 穩健經營型'; color = 'var(--pos)';
+      desc = '營業現金穩定流入，且將資金持續投入資產擴張或償還債務，屬於體質優良的發展模式。';
+    } else if (ocf > 0 && icf >= 0) {
+      label = '📈 轉型收益型'; color = 'var(--t0)';
+      desc = '本業持續賺錢，且透過處分資產或轉投資收回資金，手頭現金充裕。';
+    } else if (ocf < 0 && icf < 0) {
+      label = '⚠️ 燒錢擴張型'; color = 'var(--t2)';
+      desc = '本業尚未實現正向現金流，且仍持續投入資金擴張，高度依賴外部融資存活。';
+    } else if (ocf <= 0 && icf > 0) {
+      label = '🚨 危險警戒型'; color = 'var(--neg)';
+      desc = '本業虧損流失現金，需依賴變賣資產求生，財務風險極高！';
+    } else {
+      label = '❓ 型態不明';
+      desc = '無法取得完整的營業與投資現金流數據，可能為控股公司或處於財報真空期。';
+    }
+
+    const fmt = val => {
+      if (val === 0) return '無資料';
+      const absV = Math.abs(val) / 1000000;
+      return (val > 0 ? '+' : '-') + absV.toFixed(1) + 'M';
+    };
+
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+         <div>
+             <div style="font-size:11px;color:var(--text-3);letter-spacing:0.5px;margin-bottom:4px">現金流健康度評定</div>
+             <div style="font-size:16px;font-weight:800;color:${color}">${label}</div>
+         </div>
+         <div style="text-align:right">
+             <div style="font-size:11px;color:var(--text-3);letter-spacing:0.5px;margin-bottom:4px">自由現金流 (FCF)</div>
+             <div style="font-size:13px;font-weight:700;color:${p.fcf > 0 ? 'var(--pos)' : (p.fcf < 0 ? 'var(--neg)' : 'var(--text-1)')}">${fmt(p.fcf || 0)}</div>
+         </div>
+      </div>
+      <div style="font-size:12px;color:var(--text-3);line-height:1.5;margin-bottom:14px;">${desc}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="detail-cell" style="padding:10px;background:var(--bg-card);border:1px solid transparent">
+           <div class="detail-cell-lbl" style="font-size:10px">營業現金流入 (OCF)</div>
+           <div class="detail-cell-val" style="font-size:14px;color:${ocf>=0?'var(--pos)':'var(--neg)'};margin-top:2px">${fmt(ocf)}</div>
+        </div>
+        <div class="detail-cell" style="padding:10px;background:var(--bg-card);border:1px solid transparent">
+           <div class="detail-cell-lbl" style="font-size:10px">投資現金流出 (ICF)</div>
+           <div class="detail-cell-val" style="font-size:14px;color:${icf>=0?'var(--pos)':'var(--neg)'};margin-top:2px">${fmt(icf)}</div>
+        </div>
+      </div>
+    `;
+  }
+
   return {
     render, refresh, openDetail, openAddModal, addToPortfolio,
     addToPortfolioFromDetail, openEditHoldingModal, saveEditHolding, filterIndustry,
-    saveNote, removeStock, closeModal
+    saveNote, removeStock, closeModal, analyzeCashFlow, renderCashFlow
   };
 })();

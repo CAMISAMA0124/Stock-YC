@@ -97,6 +97,41 @@ app.get('/api/quote/:symbol', async (req, res) => {
     }
 });
 
+// Deep Financial Analysis (ON DEMAND ONLY)
+app.get('/api/finance/:symbol', async (req, res) => {
+    const symbol = req.params.symbol;
+    try {
+        const summary = await yahooFinance.quoteSummary(symbol, {
+            modules: ['cashflowStatementHistory', 'cashflowStatementHistoryQuarterly', 'financialData', 'defaultKeyStatistics']
+        });
+        
+        const cfYearly = summary.cashflowStatementHistory?.cashflowStatements?.[0] || {};
+        const cfQuarterly = summary.cashflowStatementHistoryQuarterly?.cashflowStatements?.[0] || {};
+        const cf = Object.keys(cfYearly).length > 0 ? cfYearly : cfQuarterly;
+        
+        const fin = summary.financialData || {};
+        const keys = summary.defaultKeyStatistics || {};
+
+        const financeData = {
+            ocf: cf.totalCashFromOperatingActivities ?? fin.operatingCashflow ?? null,
+            icf: cf.totalCashflowsFromInvestingActivities ?? null,
+            fcf: fin.freeCashflow ?? null,
+            roe: fin.returnOnEquity ? fin.returnOnEquity * 100 : null,
+            grossMargin: fin.grossMargins ? fin.grossMargins * 100 : null,
+            operatingMargin: fin.operatingMargins ? fin.operatingMargins * 100 : null,
+            debtToEquity: fin.debtToEquity || null,
+            revenueGrowth: fin.revenueGrowth ? fin.revenueGrowth * 100 : null,
+            payoutRatio: keys.payoutRatio ? keys.payoutRatio * 100 : null,
+            financeTs: Date.now()
+        };
+
+        res.json(financeData);
+    } catch (err) {
+        console.error(`Finance API Error for ${symbol}:`, err.message);
+        res.status(500).json({ error: 'Failed to fetch finance data' });
+    }
+});
+
 // Fetch batch quotes
 app.get('/api/batch', async (req, res) => {
     try {
