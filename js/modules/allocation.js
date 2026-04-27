@@ -262,8 +262,8 @@ YC.allocation = (() => {
     }
 
     /* ── Financial Expert Expected Return Model ──────────────────
-       Multi-factor: (Hist CAGR * 0.4) + (Market Index * 0.4) + (DivYield * 0.2)
-       Caps extreme growth to avoid overoptimism (Max 15%)
+       Multi-factor: (Hist CAGR * 0.4) + (Market Index * 0.6)
+       Dividend yield added on top. Caps at 20% to avoid overoptimism.
     */
     function computeExpertExpectedReturn(holdings, cashAssets) {
         const rate_tw_index = 0.065; // TAIEX 10-year avg
@@ -289,22 +289,22 @@ YC.allocation = (() => {
                 const oldest = sorted[0];
                 const years = (newest.t - oldest.t) / (1000 * 60 * 60 * 24 * 365);
                 
-                if (years >= 0.5) { // At least half a year to avoid noise
+                if (years >= 0.5) {
                     const rawCAGR = Math.pow(newest.c / oldest.c, 1 / years) - 1;
-                    // Blend 40% History / 60% Index (Financial Expert Conservative Rule)
+                    // Blend 40% History / 60% Index (Conservative Rule)
                     histReturn = (rawCAGR * 0.4) + (indexBaseline * 0.6);
                 }
             }
 
             // 2. Add Dividend Yield
             let divYield = (mkt.divYield || 0);
-            if (divYield > 0.4) divYield /= 100; // Normalize % vs ratio
+            if (divYield > 0.4) divYield /= 100;
             
             // 3. Expert Total Return = HistReturn + Dividend
             let symbolTotalReturn = histReturn + divYield;
 
-            // 4. Expert Safety Margin: Cap at 15% for sustainable projection
-            symbolTotalReturn = Math.min(0.15, Math.max(0.01, symbolTotalReturn));
+            // 4. Safety cap 1%~20%
+            symbolTotalReturn = Math.min(0.20, Math.max(0.01, symbolTotalReturn));
 
             weightedReturnSum += mv * symbolTotalReturn;
             totalWeight += mv;
@@ -313,5 +313,109 @@ YC.allocation = (() => {
         return totalWeight > 0 ? (weightedReturnSum / totalWeight) : 0.07;
     }
 
-    return { compute, renderStackBar, formatNTD, computePortfolioDividends, calculateRebalanceSteps, computeAverageExpenseRatio, calculatePortfolioScore, calculateWatchlistScore, computeExpertExpectedReturn };
-})();
+    /* ── Detect Investment Style from holdings ───────────────────
+       Analyzes industry / symbol patterns of the portfolio to classify
+       the user's primary investment direction, then returns three
+       scenario rates (conservative / neutral / optimistic) that
+       reflect the realistic upside & downside for that style —
+       similar to how the chart uses 8% (bear) vs 15% (neutral) for
+       a heavy-tech / FANG+ strategy.
+
+       Styles:
+         'tech'     — High-growth tech (NVDA, TSLA, FANG+, 半導體...)
+         'dividend' — High-dividend / defensive (高股息ETF, 金融, REITs...)
+         'balanced' — Mix of tech + dividend / broad index
+         'index'    — Mostly broad index ETFs (VOO, 0050...)
+    */
+    function detectInvestmentStyle(holdings) {
+        if (!holdings || holdings.length === 0) {
+            return { style: 'balanced', label: '均衡配置', emoji: '⚖️', conservative: 0.06, neutral: 0.09, optimistic: 0.13 };
+        }
+
+        // Score buckets (accumulate by market value weight)
+        let techMV = 0, divMV = 0, indexMV = 0, totalMV = 0;
+
+        const TECH_INDUSTRIES = ['科技巨頭','半導體','IC設計','AI/伺服器','軟體/雲端','產業特色ETF'];
+        const DIV_INDUSTRIES  = ['金融保險','金融服務','台股ETF','消費零售','能源/工業','傳產/零售','醫療保健'];
+        const INDEX_SYMBOLS   = ['SPY','VOO','VTI','IVV','QQQ','0050.TW','006208.TW'];
+        const TECH_KEYWORDS   = ['NVDA','TSLA','META','AAPL','MSFT','GOOGL','AMZN','NFLX','AMD','AVGO',
+                                  '2330','2454','2317','2382','00757','00881','SOXX','ARKK','QQQ'];
+
+        for (const h of holdings) {
+            const mv = h.marketValue || 0;
+            if (mv <= 0) continue;
+            totalMV += mv;
+
+            const sym = h.symbol || '';
+            const ind = h.industry || '';
+
+            if (INDEX_SYMBOLS.some(s => sym.includes(s))) {
+                indexMV += mv;
+            } else if (TECH_KEYWORDS.some(k => sym.includes(k)) || TECH_INDUSTRIES.includes(ind)) {
+                techMV += mv;
+            } else if (DIV_INDUSTRIES.includes(ind)) {
+                divMV += mv;
+            } else {
+                // Unknown → split evenly
+                techMV += mv * 0.4;
+                divMV  += mv * 0.4;
+                indexMV += mv * 0.2;
+            }
+        }
+
+        if (totalMV === 0) {
+            return { style: 'balanced', label: '均衡配置', emoji: '⚖️', conservative: 0.06, neutral: 0.09, optimistic: 0.13 };
+        }
+
+        const techPct  = techMV  / totalMV;
+        const divPct   = divMV   / totalMV;
+        const indexPct = indexMV / totalMV;
+
+        // Classify
+        if (indexPct >= 0.6) {
+            return { style: 'index', label: '指數被動型', emoji: '📊',
+                conservative: 0.06, neutral: 0.09, optimistic: 0.12 };
+        }
+        if (techPct >= 0.55) {
+            return { style: 'tech', label: '科技成長型', emoji: '🚀',
+                conservative: 0.08, neutral: 0.15, optimistic: 0.22 };
+        }
+        if (divPct >= 0.55) {
+            return { style: 'dividend', label: '高息防禦型', emoji: '💰',
+                conservative: 0.05, neutral: 0.08, optimistic: 0.11 };
+        }
+        // Default: balanced
+        return { style: 'balanced', label: '均衡成長型', emoji: '⚖️',
+            conservative: 0.07, neutral: 0.11, optimistic: 0.16 };
+    }
+
+    /* ── NPER solver with regular cash flow (PMT) ────────────────
+       Uses iterative approximation of the standard NPER financial formula:
+       FV = PV*(1+r)^n + PMT*((1+r)^n - 1)/r
+       Solve for n given PV, PMT, FV, r.
+       Returns years as float; returns Infinity if unreachable.
+    */
+    function solveNPER(pv, pmt, fv, rate) {
+        if (rate <= 0) return Infinity;
+        // If monthly investing alone can't grow (fv <= pv), still check
+        // Use binary search on n
+        if (pv >= fv) return 0;
+        let lo = 0, hi = 200;
+        for (let i = 0; i < 100; i++) {
+            const mid = (lo + hi) / 2;
+            const growth = Math.pow(1 + rate, mid);
+            const fvCalc = pv * growth + pmt * (growth - 1) / rate;
+            if (fvCalc < fv) lo = mid;
+            else hi = mid;
+        }
+        return (lo + hi) / 2;
+    }
+
+    return {
+        compute, renderStackBar, formatNTD,
+        computePortfolioDividends, calculateRebalanceSteps,
+        computeAverageExpenseRatio, calculatePortfolioScore,
+        calculateWatchlistScore, computeExpertExpectedReturn,
+        detectInvestmentStyle, solveNPER
+    };
+})();

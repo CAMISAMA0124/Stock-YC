@@ -162,7 +162,22 @@ YC.state = (() => {
     marketData: {},
     // Cached sentiment index
     sentiment: null,
-    sentimentFetchedAt: null
+    sentimentFetchedAt: null,
+
+    // ── Asset Ledger (記帳 / 資產管理) ────────────────────────
+    assets: {
+      bank:      [], // { id, name, type:'活存'|'定存'|'外幣', amount, currency?, orgAmount? }
+      stock:     [], // { id, symbol, name, shares, cost }  — price auto-synced from marketData
+      precious:  [], // { id, metalKey:'gold'|'silver'|'platinum', name, weight, unit:'oz'|'g'|'qian'|'tael', cost, amount }
+      insurance: [], // { id, name, company, amount, note }
+      other:     [], // { id, name, amount, note }
+      loan:      []  // { id, name, amount, rate, note }
+    },
+    ledger:           [], // { id, date, type:'income'|'expense', category, amount, note }
+    metalPrices:      null, // { gold, silver, platinum, twdRate, updatedAt }
+    metalPricesFetchedAt: null,
+    liveRates:        null, // { USD, JPY, EUR, CNY, HKD } each = 1 unit in TWD
+    liveRatesFetchedAt: null
   };
 
   let data = null;
@@ -184,6 +199,20 @@ YC.state = (() => {
 
         data.marketData = parsed.marketData || {};
         data.exchangeRate = parsed.exchangeRate || 31.5;
+        // Load asset ledger
+        data.assets = parsed.assets ? {
+          bank:      parsed.assets.bank      || [],
+          stock:     parsed.assets.stock     || [],
+          precious:  parsed.assets.precious  || [],
+          insurance: parsed.assets.insurance || [],
+          other:     parsed.assets.other     || [],
+          loan:      parsed.assets.loan      || []
+        } : DEFAULTS.assets;
+        data.ledger              = parsed.ledger              || [];
+        data.metalPrices         = parsed.metalPrices         || null;
+        data.metalPricesFetchedAt= parsed.metalPricesFetchedAt|| null;
+        data.liveRates           = parsed.liveRates           || null;
+        data.liveRatesFetchedAt  = parsed.liveRatesFetchedAt  || null;
       } catch (e) {
         data = { ...DEFAULTS };
       }
@@ -203,7 +232,13 @@ YC.state = (() => {
       sentiment: data.sentiment,
       sentimentFetchedAt: data.sentimentFetchedAt,
       exchangeRate: data.exchangeRate,
-      marketData: data.marketData
+      marketData: data.marketData,
+      assets: data.assets,
+      ledger: data.ledger,
+      metalPrices: data.metalPrices,
+      metalPricesFetchedAt: data.metalPricesFetchedAt,
+      liveRates: data.liveRates,
+      liveRatesFetchedAt: data.liveRatesFetchedAt
     }));
   }
 
@@ -317,5 +352,71 @@ YC.state = (() => {
       '00924.TW': 0.45, '00915.TW': 0.35, '00918.TW': 0.30
   };
 
-  return { get, patch, setSettings, setHoldings, addHolding, updateHolding, setMarketData, getMarketData, isStale, getNote, saveNote, save, exportJSON, importJSON, EXPENSE_RATIOS };
+  // ── Asset Ledger helpers ────────────────────────────────────────────
+  function getAssets() {
+    if (!data) load();
+    return data.assets;
+  }
+
+  function saveAssets(assets) {
+    if (!data) load();
+    data.assets = assets;
+    save();
+  }
+
+  function getLedger() {
+    if (!data) load();
+    return data.ledger || [];
+  }
+
+  function saveLedger(entries) {
+    if (!data) load();
+    data.ledger = entries;
+    save();
+  }
+
+  function getMetalPrices() {
+    if (!data) load();
+    return data.metalPrices || null;
+  }
+
+  function setMetalPrices(prices) {
+    if (!data) load();
+    data.metalPrices = prices;
+    data.metalPricesFetchedAt = Date.now();
+    save();
+  }
+
+  function isMetalPricesStale() {
+    if (!data) load();
+    if (!data.metalPricesFetchedAt) return true;
+    return (Date.now() - data.metalPricesFetchedAt) > 5 * 60 * 1000; // 5 mins
+  }
+
+  function getLiveRates() {
+    if (!data) load();
+    return data.liveRates || null;
+  }
+
+  function setLiveRates(rates) {
+    if (!data) load();
+    data.liveRates = rates;
+    data.liveRatesFetchedAt = Date.now();
+    save();
+  }
+
+  function isRatesStale() {
+    if (!data) load();
+    if (!data.liveRatesFetchedAt) return true;
+    return (Date.now() - data.liveRatesFetchedAt) > 5 * 60 * 1000; // 5 mins
+  }
+
+  return {
+    get, patch, setSettings, setHoldings, addHolding, updateHolding,
+    setMarketData, getMarketData, isStale,
+    getNote, saveNote, save, exportJSON, importJSON, EXPENSE_RATIOS,
+    getAssets, saveAssets, getLedger, saveLedger,
+    getMetalPrices, setMetalPrices, isMetalPricesStale,
+    getLiveRates, setLiveRates, isRatesStale
+  };
 })();

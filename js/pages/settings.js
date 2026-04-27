@@ -71,7 +71,7 @@ YC.settingsPage = (() => {
                             <li><span style="color:var(--t0)">安全性保證：</span>金鑰僅加密儲存於您的瀏覽器本地，絕不上傳。</li>
                             <li><a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent); text-decoration:underline;">👉 點此前往取得 Google Gemini API Key</a> (免費額度充足，推薦使用)</li>
                             <li><a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--accent); text-decoration:underline;">👉 點此前往取得 OpenAI API Key</a> (適合進階訂閱用戶)</li>
-                            <li><span style="color:white">操作步驟：</span>複製取得的 API Key $\\rightarrow$ 貼上至上方欄位 $\\rightarrow$ 點擊下方「💾 儲存所有設定」。完成後即可至「AI 分析」分頁啟用智慧財經顧問！</li>
+                            <li><span style="color:white">操作步驟：</span>複製取得的 API Key → 貼上至上方欄位 → 點擊下方「💾 儲存所有設定」。完成後即可至「AI 分析」分頁啟用智慧財經顧問！</li>
                         </ul>
                     </div>
                 </div>
@@ -93,6 +93,13 @@ YC.settingsPage = (() => {
                         <label class="form-label">目前年齡</label>
                         <input type="number" id="set-current-age" class="form-input" value="${settings.currentAge || 30}" min="0" max="120">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">💳 每月定期定額投入 (TWD)
+                        <span style="font-size:10px; font-weight:normal; color:var(--text-3); margin-left:6px">用於財務自由預測模型</span>
+                    </label>
+                    <input type="number" id="set-monthly-invest" class="form-input" value="${settings.monthlyInvest || 0}" placeholder="例如：20000" min="0">
+                    <div class="form-help">填入您每月固定投入的金額，系統將納入複利計算，讓財務自由預測更準確。</div>
                 </div>
             </div>
 
@@ -148,20 +155,15 @@ YC.settingsPage = (() => {
       goalName: document.getElementById('set-goal-name').value,
       goalAmount: parseFloat(document.getElementById('set-goal-amt').value) || 0,
       currentAge: parseInt(document.getElementById('set-current-age').value) || 30,
+      monthlyInvest: parseFloat(document.getElementById('set-monthly-invest').value) || 0,
     };
 
-    YC.state.setSettings(newSettings);
-
-    // Update total assets immediately
+    // Calculate totalAssets = cash + current equity market value, then write once
     const holdings = YC.portfolio.getEnriched();
     const equity = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
-    
-    YC.state.patch({
-      settings: {
-        ...newSettings,
-        totalAssets: (newSettings.cashAssets || 0) + equity
-      }
-    });
+    newSettings.totalAssets = (newSettings.cashAssets || 0) + equity;
+
+    YC.state.setSettings(newSettings);
 
     alert('✅ 設定已儲存成功！');
     YC.app.refreshData();

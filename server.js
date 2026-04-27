@@ -204,15 +204,23 @@ app.post('/api/sync/push', (req, res) => {
     if (!state || typeof state !== 'object') return res.status(400).json({ error: 'Invalid state' });
     
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Cleanup expired entries first
+    for (const [k, v] of syncVault) {
+        if (v.expires < Date.now()) syncVault.delete(k);
+    }
+
+    // Hard cap: evict the oldest entry if still over limit
+    if (syncVault.size >= 100) {
+        const oldestKey = syncVault.keys().next().value;
+        syncVault.delete(oldestKey);
+        console.warn(`[Sync] Vault full — evicted oldest entry (${oldestKey})`);
+    }
+
     syncVault.set(code, {
         data: state,
         expires: Date.now() + (10 * 60 * 1000) // 10 minutes
     });
-    
-    // Cleanup expired
-    for (const [k, v] of syncVault) {
-        if (v.expires < Date.now()) syncVault.delete(k);
-    }
     
     console.log(`[Sync] State pushed. Code: ${code}`);
     res.json({ code, expires: 600 });
@@ -235,8 +243,98 @@ app.get('/api/sync/pull/:code', (req, res) => {
 });
 
 
+// ── Exchange Rates API ───────────────────────────────────────────────────────
+// Fetches live TWD cross-rates for all supported currencies from Yahoo Finance
+// Symbols: TWD=X (USD/TWD), JPYTWD=X, EURTWD=X, CNYTWD=X, HKDTWD=X
+app.get('/api/rates', async (req, res) => {
+    try {
+        // Yahoo Finance cross-rate symbols (price = 1 foreign unit in TWD)
+        const RATE_SYMBOLS = ['TWD=X', 'JPYTWD=X', 'EURTWD=X', 'CNYTWD=X', 'HKDTWD=X'];
+        const results = await Promise.allSettled(RATE_SYMBOLS.map(s => yahooFinance.quote(s)));
+
+        const safeRate = (r, fallback) =>
+            (r.status === 'fulfilled' && r.value?.regularMarketPrice) ? r.value.regularMarketPrice : fallback;
+
+        // TWD=X gives USD→TWD rate; others give 1 foreign unit in TWD directly
+        const usdTwd = safeRate(results[0], 32.0);
+
+        res.json({
+            success: true,
+            rates: {
+                USD: usdTwd,                         // 1 USD = ? TWD
+                JPY: safeRate(results[1], usdTwd / 150), // 1 JPY = ? TWD
+                EUR: safeRate(results[2], usdTwd * 1.08),// 1 EUR = ? TWD
+                CNY: safeRate(results[3], usdTwd / 7.2), // 1 CNY = ? TWD
+                HKD: safeRate(results[4], usdTwd / 7.8), // 1 HKD = ? TWD
+            },
+            updatedAt: Date.now()
+        });
+    } catch (error) {
+        console.error('[Rates API]', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ── Metals Price API (Gold / Silver / Platinum) ─────────────────────────────
+// Fetches futures prices from Yahoo Finance, converts to TWD 銀樓牌價
+// Unit conversions: 1 troy oz = 31.1035 g | 1 台錢 = 3.75 g | 1 台兩 = 37.5 g
+app.get('/api/metals', async (req, res) => {
+    try {
+        const SYMBOLS = ['GC=F', 'SI=F', 'PL=F', 'TWD=X'];
+        const results = await Promise.allSettled(SYMBOLS.map(s => yahooFinance.quote(s)));
+
+        const safeData = (r, fallback) => {
+            if (r.status === 'fulfilled' && r.value) {
+                return {
+                    price: r.value.regularMarketPrice || fallback,
+                    changePercent: r.value.regularMarketChangePercent || 0
+                };
+            }
+            return { price: fallback, changePercent: 0 };
+        };
+
+        const goldData     = safeData(results[0], 3300);
+        const silverData   = safeData(results[1], 33);
+        const platinumData = safeData(results[2], 1000);
+        const twdRate      = safeData(results[3], 32.5).price;
+
+        // 銀樓牌價 markup (retail spread above spot)
+        const RETAIL_MARKUP = { gold: 1.015, silver: 1.05, platinum: 1.05 };
+        const OZ_TO_G = 31.1035;
+        const G_TO_QIAN = 1 / 3.75;   // 台錢
+        const G_TO_TAEL = 1 / 37.5;   // 台兩
+
+        function buildMetal(data, markup) {
+            const usdPerOz = data.price;
+            const twdPerOz   = usdPerOz * twdRate * markup;
+            const twdPerGram = twdPerOz / OZ_TO_G;
+            return {
+                usdPerOz:   Math.round(usdPerOz * 100) / 100,
+                changePercent: data.changePercent,
+                twdPerOz:   Math.round(twdPerOz),
+                twdPerGram: Math.round(twdPerGram),
+                twdPerQian: Math.round(twdPerGram / G_TO_QIAN),   // per 台錢
+                twdPerTael: Math.round(twdPerGram / G_TO_TAEL),   // per 台兩
+            };
+        }
+
+        res.json({
+            success:    true,
+            twdRate,
+            gold:       buildMetal(goldData,     RETAIL_MARKUP.gold),
+            silver:     buildMetal(silverData,   RETAIL_MARKUP.silver),
+            platinum:   buildMetal(platinumData, RETAIL_MARKUP.platinum),
+            updatedAt:  Date.now(),
+            note: '銀樓牌價為現貨加成約1.5–5%，僅供參考，以各銀樓實際公告為準'
+        });
+    } catch (error) {
+        console.error('[Metals API]', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
-    console.log(`??YC Local API Server is running on http://localhost:${PORT}`);
+    console.log(`⚡ YC Local API Server is running on http://localhost:${PORT}`);
     console.log(`This server uses 'yahoo-finance2' to bypass blocks and provide clean data to your frontend.`);
 });

@@ -13,6 +13,7 @@ YC.app = (() => {
         heatmap: { title: '熱力分佈', render: () => YC.heatmapPage && YC.heatmapPage.render() },
         ai: { title: 'AI 持倉分析', render: () => YC.aiPage && YC.aiPage.render() },
         settings: { title: '設定', render: () => YC.settingsPage && YC.settingsPage.render() },
+        ledger: { title: '資產記帳', render: () => YC.ledgerPage && YC.ledgerPage.render() },
     };
 
     let currentPage = 'dashboard';
@@ -103,6 +104,16 @@ YC.app = (() => {
 
             // Trigger UI Refresh
             console.log(`[App] Data sync complete. Refreshing active view: ${currentPage}`);
+
+            // Also refresh live exchange rates BEFORE rendering so bank TWD values are correct
+            try {
+                const r = await fetch('/api/rates');
+                const d = await r.json();
+                if (d.success && d.rates) YC.state.setLiveRates(d.rates);
+            } catch (err) {
+                console.warn('[App] Rates fetch failed:', err);
+            }
+
             safeRender(currentPage);
             setStatus('success', '數據已更新');
 
@@ -142,6 +153,15 @@ YC.app = (() => {
 
         // Kick off initial data background fetch
         refreshData();
+
+        // Pre-fetch metal prices in background
+        YC.metals.fetchPrices().catch(e => console.warn('[App] Metals pre-fetch failed:', e));
+
+        // Pre-fetch live exchange rates in background
+        fetch('/api/rates')
+            .then(r => r.json())
+            .then(d => { if (d.success && d.rates) YC.state.setLiveRates(d.rates); })
+            .catch(e => console.warn('[App] Rates pre-fetch failed:', e));
 
         // 4. Loading Screen Dismissal
         setTimeout(() => {

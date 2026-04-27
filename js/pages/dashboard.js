@@ -240,13 +240,13 @@ YC.dashboardPage = (() => {
         holdList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-text">尚未新增持股</div></div>`;
       } else {
         const remained = holdings.length - 5;
-        const displayHoldings = this.isExpanded ? holdings : holdings.slice(0, 5);
+        const displayHoldings = isExpanded ? holdings : holdings.slice(0, 5);
         
         holdList.innerHTML = `
           <div class="stock-list">${displayHoldings.map(h => renderHoldingCard(h)).join('')}</div>
           ${remained > 0 ? `
             <div id="dash-expand-btn" style="text-align:center; padding:12px; color:var(--accent); font-size:12px; cursor:pointer; font-weight:700; transition: opacity 0.2s">
-              ${this.isExpanded ? '🔼 收合持股清單' : `📂 展開查看剩餘 ${remained} 檔持股...`}
+              ${isExpanded ? '🔼 收合持股清單' : `📂 展開查看剩餘 ${remained} 檔持股...`}
             </div>
           ` : ''}
         `;
@@ -254,7 +254,7 @@ YC.dashboardPage = (() => {
         const btn = document.getElementById('dash-expand-btn');
         if (btn) {
           btn.onclick = () => {
-            this.isExpanded = !this.isExpanded;
+            isExpanded = !isExpanded;
             refreshData(el);
           };
         }
@@ -264,8 +264,8 @@ YC.dashboardPage = (() => {
     renderGoal(combinedSettings);
   }
 
-  // State
-  this.isExpanded = false;
+  // State: closure variable for holdings expand/collapse toggle
+  let isExpanded = false;
 
   /* ── Opportunity Radar ──────────────────────────── */
   async function renderRadar() {
@@ -637,33 +637,49 @@ YC.dashboardPage = (() => {
     if (!el) return;
     if (!settings.goalAmount || !settings.goalName) { el.innerHTML = ''; return; }
 
-    const totalAssets = settings.totalAssets || 0;
-    const goalAmt = settings.goalAmount;
-    const pct = Math.min(100, Math.round((totalAssets / goalAmt) * 100));
-    const remaining = goalAmt - totalAssets;
+    const totalAssets  = settings.totalAssets || 0;
+    const goalAmt      = settings.goalAmount;
+    const currentAge   = settings.currentAge || 30;
+    const monthlyPMT   = parseFloat(settings.monthlyInvest) || 0;
+    const annualPMT    = monthlyPMT * 12;
+    const pct          = Math.min(100, Math.round((totalAssets / goalAmt) * 100));
+    const remaining    = goalAmt - totalAssets;
 
-    // --- Financial Expert Model Implementation ---
+    // ── 1. Detect investment style from holdings ──────────────────
     const holdings = YC.portfolio.getEnriched();
-    const weightedRate = YC.allocation.computeExpertExpectedReturn(holdings, settings.cashAssets || 0);
-    
-    // Safety check: avoid infinity
-    const activeRate = Math.max(0.01, weightedRate);
+    const style    = YC.allocation.detectInvestmentStyle(holdings);
 
-    let yearsLeft = 0;
-    let ageAchieved = settings.currentAge || 30;
+    // ── 2. Expert neutral rate (blended from real holdings history) ──
+    const expertRate = YC.allocation.computeExpertExpectedReturn(holdings, settings.cashAssets || 0);
+    // Use style-aware neutral as floor if expert rate is too low (data insufficient)
+    const neutralRate = Math.max(expertRate, style.neutral);
 
-    if (totalAssets > 0 && totalAssets < goalAmt) {
-        // Formula: n = log(Target/Current) / log(1+r)
-        yearsLeft = Math.log(goalAmt / totalAssets) / Math.log(1 + activeRate);
-        ageAchieved = (settings.currentAge || 30) + yearsLeft;
-    }
+    // ── 3. Solve NPER for three scenarios (annual compounding + PMT) ──
+    //   solveNPER(PV, annualPMT, FV, annualRate)
+    const safeR    = rate => Math.max(rate, 0.001);
+    const nBear    = YC.allocation.solveNPER(totalAssets, annualPMT, goalAmt, safeR(style.conservative));
+    const nNeutral = YC.allocation.solveNPER(totalAssets, annualPMT, goalAmt, safeR(neutralRate));
+    const nBull    = YC.allocation.solveNPER(totalAssets, annualPMT, goalAmt, safeR(style.optimistic));
 
-    const yearsStr = yearsLeft > 0 ? (yearsLeft < 1 ? '預計 1 年內' : `${Math.floor(yearsLeft)} 年 ${Math.round((yearsLeft % 1) * 12)} 個月`) : '目標已達成';
-    const ageStr = yearsLeft > 0 ? `${Math.floor(ageAchieved)} 歲` : `${settings.currentAge || '—'}`;
+    const toAge    = n => (n === Infinity || isNaN(n)) ? null : Math.round(currentAge + n);
+    const ageStr   = age => age === null ? '難以達成' : `${age} 歲`;
+    const yrsStr   = n   => {
+        if (n === Infinity || isNaN(n)) return '難以達成';
+        if (n < 1) return '預計 1 年內';
+        return `${Math.floor(n)} 年 ${Math.round((n % 1) * 12)} 個月`;
+    };
 
-    // Monte Carlo Simplified Logic: 考慮 +/- 2% 的市場波動範圍
-    const bearAge = yearsLeft > 0 ? (settings.currentAge || 30) + (Math.log(goalAmt / totalAssets) / Math.log(1 + activeRate - 0.02)) : 0;
-    const bullAge = yearsLeft > 0 ? (settings.currentAge || 30) + (Math.log(goalAmt / totalAssets) / Math.log(1 + activeRate + 0.02)) : 0;
+    const bearAge    = toAge(nBear);
+    const neutralAge = toAge(nNeutral);
+    const bullAge    = toAge(nBull);
+
+    // ── 4. PMT hint line ─────────────────────────────────────────
+    const pmtHint = monthlyPMT > 0
+        ? `<span style="color:var(--pos)">含每月投入 NT$${monthlyPMT.toLocaleString()}</span>`
+        : `<span style="color:var(--text-3)">⚠ 未設定每月投入金額（設定頁面可設定）</span>`;
+
+    // ── 5. Neutral years string ───────────────────────────────────
+    const yearsStr = yrsStr(nNeutral);
 
     el.innerHTML = `
     <div class="goal-card">
@@ -689,36 +705,56 @@ YC.dashboardPage = (() => {
           <div class="goal-stat-lbl">預計剩餘時間</div>
         </div>
         <div class="goal-stat">
-          <div class="goal-stat-val" style="color:var(--t0)">${ageStr}</div>
+          <div class="goal-stat-val" style="color:var(--t0)">${ageStr(neutralAge)}</div>
           <div class="goal-stat-lbl">達成預估年齡</div>
         </div>
       </div>
 
       <!-- Expert Analysis Detail -->
-      <div style="margin-top:15px; padding-top:12px; border-top:1px dashed var(--border); display:flex; flex-direction:column; gap:8px">
+      <div style="margin-top:15px; padding-top:12px; border-top:1px dashed var(--border); display:flex; flex-direction:column; gap:10px">
+
+        <!-- Style Badge + Expert Rate -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px">
+          <div style="display:flex; align-items:center; gap:8px">
+            <span style="font-size:11px; color:var(--text-3)">🎯 持倉風格偵測</span>
+            <span style="font-size:12px; font-weight:700; background:rgba(255,255,255,0.07); padding:2px 8px; border-radius:20px; border:1px solid rgba(255,255,255,0.12)">${style.emoji} ${style.label}</span>
+          </div>
+          <span style="font-size:11px; color:var(--text-3)">${pmtHint}</span>
+        </div>
+
+        <!-- Rate Row -->
         <div style="display:flex; justify-content:space-between; align-items:center">
           <span style="font-size:11px; color:var(--text-3)">🏦 多因子加權期望報酬率</span>
-          <span style="font-size:14px; font-weight:800; color:var(--pos)">${(activeRate * 100).toFixed(2)}% <small style="font-size:9px; font-weight:normal; color:var(--text-3)">(已扣除內扣)</small></span>
+          <span style="font-size:14px; font-weight:800; color:var(--pos)">${(neutralRate * 100).toFixed(2)}% <small style="font-size:9px; font-weight:normal; color:var(--text-3)">(已扣除內扣)</small></span>
         </div>
-        
+
+        <!-- Three scenario cards -->
         <div style="display:flex; gap:6px; font-size:10px">
-          <div style="flex:1; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05)">
-            <div style="color:var(--text-3); margin-bottom:2px">🐻 保守路徑</div>
-            <div style="color:var(--t3); font-weight:700">${bearAge > 0 ? Math.floor(bearAge) : '—'} 歲達成</div>
+          <div style="flex:1; background:rgba(255,80,80,0.07); padding:10px; border-radius:8px; border:1px solid rgba(255,80,80,0.15); text-align:center">
+            <div style="color:var(--text-3); margin-bottom:4px; font-size:9px">🐻 保守情境</div>
+            <div style="color:var(--neg); font-weight:800; font-size:15px">${ageStr(bearAge)}</div>
+            <div style="color:var(--text-3); font-size:9px; margin-top:3px">年化 ${(style.conservative*100).toFixed(0)}%</div>
           </div>
-          <div style="flex:1; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05)">
-            <div style="color:var(--text-3); margin-bottom:2px">🐮 樂觀路徑</div>
-            <div style="color:var(--t0); font-weight:700">${bullAge > 0 ? Math.floor(bullAge) : '—'} 歲達成</div>
+          <div style="flex:1; background:rgba(0,229,255,0.07); padding:10px; border-radius:8px; border:1px solid rgba(0,229,255,0.2); text-align:center">
+            <div style="color:var(--text-3); margin-bottom:4px; font-size:9px">📊 中性情境</div>
+            <div style="color:var(--accent); font-weight:800; font-size:15px">${ageStr(neutralAge)}</div>
+            <div style="color:var(--text-3); font-size:9px; margin-top:3px">年化 ${(neutralRate*100).toFixed(0)}%</div>
+          </div>
+          <div style="flex:1; background:rgba(0,212,100,0.07); padding:10px; border-radius:8px; border:1px solid rgba(0,212,100,0.15); text-align:center">
+            <div style="color:var(--text-3); margin-bottom:4px; font-size:9px">🚀 樂觀情境</div>
+            <div style="color:var(--pos); font-weight:800; font-size:15px">${ageStr(bullAge)}</div>
+            <div style="color:var(--text-3); font-size:9px; margin-top:3px">年化 ${(style.optimistic*100).toFixed(0)}%</div>
           </div>
         </div>
 
-        <div style="font-size:9px; color:var(--text-3); text-align:center; line-height:1.4">
-          ※ 專家模型結合具體持倉歷史 CAGR (40%) + 分類指數基線 (60%) 進行精算。<br>
-          保守/樂觀路徑基於報酬率 ±2% 波動模擬，僅供理財參考。
+        <div style="font-size:9px; color:var(--text-3); text-align:center; line-height:1.5">
+          ※ 中性情境 = 多因子專家模型 (持倉歷史 CAGR×40% + 指數基線×60% + 股息)。<br>
+          保守/樂觀情境依照「${style.label}」風格的歷史報酬區間自動校準，已計入每月定期投入的複利效益。
         </div>
       </div>
     </div>`;
   }
+
 
   return { render, refreshData };
 })();
