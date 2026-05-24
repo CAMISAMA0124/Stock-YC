@@ -19,7 +19,12 @@ YC.settingsPage = (() => {
             <div class="card">
                 <div class="card-title">💰 資產配置設定</div>
                 <div class="form-group">
-                    <label class="form-label">目前總可用現金 (TWD)</label>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label class="form-label" style="margin-bottom:0;">目前總可用現金 (TWD)</label>
+                        <button class="btn btn-sm btn-secondary" onclick="YC.settingsPage.autofillCashFromLedger(); return false;" style="padding: 2px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                            ⚡ 一鍵帶入 (記帳淨資產)
+                        </button>
+                    </div>
                     <input type="number" id="set-cash" class="form-input" value="${settings.cashAssets || 0}" placeholder="輸入您的銀行活存/現金總額">
                     <div class="form-help">系統將自動加總您的「庫存持股市值」與此「現金」，計算出「總資產」。</div>
                 </div>
@@ -232,5 +237,39 @@ YC.settingsPage = (() => {
     }
   }
 
-  return { render, saveAll, resetApp, handleImport, pushSync, pullSync };
+  function autofillCashFromLedger() {
+    if (typeof YC.ledgerPage === 'undefined' || typeof YC.ledgerPage.calcTotals !== 'function') {
+      alert('❌ 無法取得記帳資產資料！請確認記帳模組已載入。');
+      return;
+    }
+    try {
+      const t = YC.ledgerPage.calcTotals();
+      // Bank + Precious + Insurance + Other - Loan
+      const sum = (t.bank || 0) + (t.precious || 0) + (t.insurance || 0) + (t.other || 0) - (t.loan || 0);
+      
+      const input = document.getElementById('set-cash');
+      if (input) {
+        input.value = sum;
+        
+        // Premium animation feedback: transient highlight/glow
+        input.style.transition = 'all 0.3s ease';
+        input.style.borderColor = 'var(--accent, #00D4AA)';
+        input.style.boxShadow = '0 0 15px rgba(0, 212, 170, 0.4)';
+        
+        // Reset styles after a short delay
+        setTimeout(() => {
+          input.style.borderColor = '';
+          input.style.boxShadow = '';
+        }, 1200);
+        
+        console.log(`[Settings] Autofilled cash assets from Ledger: ${sum}`);
+      } else {
+        alert('❌ 找不到目前可用現金的輸入框！');
+      }
+    } catch (e) {
+      alert('❌ 一鍵帶入失敗：' + e.message);
+    }
+  }
+
+  return { render, saveAll, resetApp, handleImport, pushSync, pullSync, autofillCashFromLedger };
 })();

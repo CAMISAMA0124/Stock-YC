@@ -908,6 +908,7 @@ YC.ledgerPage = (() => {
         calcMetalValue,
         saveLedgerEntry,
         deleteLedger,
-        changeMonth
+        changeMonth,
+        calcTotals
     };
 })();
