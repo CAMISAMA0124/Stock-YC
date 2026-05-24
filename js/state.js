@@ -244,6 +244,28 @@ YC.state = (() => {
 
   function get() {
     if (!data) load();
+
+    // Automatically keep cashAssets and totalAssets in sync if cashMode is 'auto'
+    if (data.settings && data.settings.cashMode === 'auto' && window.YC && YC.ledgerPage && typeof YC.ledgerPage.calcTotals === 'function') {
+      try {
+        const t = YC.ledgerPage.calcTotals();
+        const calculatedCash = (t.bank || 0) + (t.precious || 0) + (t.insurance || 0) + (t.other || 0) - (t.loan || 0);
+        if (data.settings.cashAssets !== calculatedCash) {
+          data.settings.cashAssets = calculatedCash;
+          
+          // Re-calculate totalAssets as well
+          if (window.YC.portfolio && typeof window.YC.portfolio.getEnriched === 'function') {
+            const holdings = window.YC.portfolio.getEnriched();
+            const equity = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
+            data.settings.totalAssets = calculatedCash + equity;
+          }
+          save();
+        }
+      } catch (e) {
+        console.warn('[State] Dynamic cashAssets calculation failed:', e.message);
+      }
+    }
+
     return data;
   }
 

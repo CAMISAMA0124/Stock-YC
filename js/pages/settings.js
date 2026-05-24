@@ -11,6 +11,13 @@ YC.settingsPage = (() => {
 
     const state = YC.state.get();
     const settings = state.settings;
+    
+    const isAuto = settings.cashMode === 'auto';
+    let cashVal = settings.cashAssets || 0;
+    if (isAuto && typeof YC.ledgerPage !== 'undefined' && typeof YC.ledgerPage.calcTotals === 'function') {
+      const t = YC.ledgerPage.calcTotals();
+      cashVal = (t.bank || 0) + (t.precious || 0) + (t.insurance || 0) + (t.other || 0) - (t.loan || 0);
+    }
 
     el.innerHTML = `
         <div class="settings-page">
@@ -21,12 +28,22 @@ YC.settingsPage = (() => {
                 <div class="form-group">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <label class="form-label" style="margin-bottom:0;">目前總可用現金 (TWD)</label>
-                        <button class="btn btn-sm btn-secondary" onclick="YC.settingsPage.autofillCashFromLedger(); return false;" style="padding: 2px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                            ⚡ 一鍵帶入 (記帳淨資產)
-                        </button>
+                        <div style="display:flex; background:rgba(255,255,255,0.05); padding:2px; border-radius:6px; border:1px solid var(--border); gap:2px">
+                            <button id="btn-mode-manual" class="btn btn-sm" style="padding:2px 8px; font-size:10px; border-radius:4px; margin:0; border:none; transition:all 0.2s; ${!isAuto ? 'background:var(--accent); color:#080812; font-weight:bold' : 'background:transparent; color:var(--text-3)'}" onclick="YC.settingsPage.setCashMode('manual'); return false;">✍️ 手動</button>
+                            <button id="btn-mode-auto" class="btn btn-sm" style="padding:2px 8px; font-size:10px; border-radius:4px; margin:0; border:none; transition:all 0.2s; ${isAuto ? 'background:var(--accent); color:#080812; font-weight:bold' : 'background:transparent; color:var(--text-3)'}" onclick="YC.settingsPage.setCashMode('auto'); return false;">⚡ 自動帶入</button>
+                        </div>
                     </div>
-                    <input type="number" id="set-cash" class="form-input" value="${settings.cashAssets || 0}" placeholder="輸入您的銀行活存/現金總額">
-                    <div class="form-help">系統將自動加總您的「庫存持股市值」與此「現金」，計算出「總資產」。</div>
+                    
+                    <div style="display:flex; gap:8px">
+                        <input type="number" id="set-cash" class="form-input" value="${cashVal || 0}" placeholder="輸入您的銀行活存/現金總額" ${isAuto ? 'readonly style="background:rgba(255,255,255,0.02); color:var(--text-3); cursor:not-allowed; flex:1;"' : 'style="flex:1;"'}>
+                        ${!isAuto ? `<button class="btn btn-sm btn-secondary" onclick="YC.settingsPage.autofillCashFromLedger(); return false;" style="white-space:nowrap; padding:0 12px; font-size:12px">一鍵帶入</button>` : ''}
+                    </div>
+                    
+                    <div class="form-help">
+                        ${isAuto 
+                          ? '<span style="color:var(--accent)">● 自動帶入模式已啟用：</span>實時與您的記帳「銀行 + 貴金屬 + 保險 + 其他 - 借貸」淨資產連動。' 
+                          : '系統將自動加總您的「庫存持股市值」與此「現金」，計算出「總資產」。可點擊「一鍵帶入」從記帳淨值填入。'}
+                    </div>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 20px;">
@@ -147,10 +164,17 @@ YC.settingsPage = (() => {
   function saveAll() {
     const state = YC.state.get();
     const currentSettings = state.settings || {};
+    const isAuto = currentSettings.cashMode === 'auto';
+    
+    let cashVal = parseFloat(document.getElementById('set-cash').value) || 0;
+    if (isAuto && typeof YC.ledgerPage !== 'undefined' && typeof YC.ledgerPage.calcTotals === 'function') {
+      const t = YC.ledgerPage.calcTotals();
+      cashVal = (t.bank || 0) + (t.precious || 0) + (t.insurance || 0) + (t.other || 0) - (t.loan || 0);
+    }
 
     const newSettings = {
       ...currentSettings,
-      cashAssets: parseFloat(document.getElementById('set-cash').value) || 0,
+      cashAssets: cashVal,
       maxCashPct: parseInt(document.getElementById('set-max-cash').value) || 50,
       minCashPct: parseInt(document.getElementById('set-min-cash').value) || 5,
       aiProvider: document.getElementById('set-ai-provider').value,
@@ -271,5 +295,36 @@ YC.settingsPage = (() => {
     }
   }
 
-  return { render, saveAll, resetApp, handleImport, pushSync, pullSync, autofillCashFromLedger };
+  function setCashMode(mode) {
+    const state = YC.state.get();
+    const currentSettings = state.settings || {};
+    
+    currentSettings.cashMode = mode;
+    
+    // If auto mode is selected, calculate and set cashAssets immediately
+    if (mode === 'auto' && typeof YC.ledgerPage !== 'undefined' && typeof YC.ledgerPage.calcTotals === 'function') {
+      const t = YC.ledgerPage.calcTotals();
+      const sum = (t.bank || 0) + (t.precious || 0) + (t.insurance || 0) + (t.other || 0) - (t.loan || 0);
+      currentSettings.cashAssets = sum;
+    }
+    
+    YC.state.setSettings(currentSettings);
+    
+    // Re-render settings page to reflect state changes
+    render();
+    
+    // Provide glowing feedback
+    const input = document.getElementById('set-cash');
+    if (input) {
+      input.style.transition = 'all 0.3s ease';
+      input.style.borderColor = 'var(--accent, #00D4AA)';
+      input.style.boxShadow = '0 0 15px rgba(0, 212, 170, 0.4)';
+      setTimeout(() => {
+        input.style.borderColor = '';
+        input.style.boxShadow = '';
+      }, 1000);
+    }
+  }
+
+  return { render, saveAll, resetApp, handleImport, pushSync, pullSync, autofillCashFromLedger, setCashMode };
 })();
