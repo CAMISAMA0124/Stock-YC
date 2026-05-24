@@ -218,7 +218,7 @@ YC.stocks = (() => {
     symbolInput.addEventListener('input', (e) => {
       let val = e.target.value.trim().toUpperCase();
       
-      if (/^\d{4,6}$/.test(val)) {
+      if (/^\d{4,6}[A-Z]?$/.test(val)) {
         val = val + '.TW';
         e.target.value = val;
         typeSelect.value = 'tw';

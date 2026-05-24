@@ -65,7 +65,7 @@ YC.ledgerPage = (() => {
         if (key === 'stock') {
             const mkt = YC.state.getMarketData(item.symbol) || {};
             const price = mkt.price || mkt.regularMarketPrice || item.lastPrice || 0;
-            const isUS  = item.symbol && !/^\d{4,6}(\.TW)?$/.test(item.symbol);
+            const isUS  = item.symbol && !/^\d{4,6}[A-Z]?(\.TW)?$/i.test(item.symbol);
             const rate  = YC.state.get().exchangeRate || 32.5;
             let val = (price || 0) * (item.shares || 0);
             if (isUS) val *= rate;
@@ -679,7 +679,7 @@ YC.ledgerPage = (() => {
 
         try {
             // Parallel: fetch Yahoo price data + TW Chinese name (if applicable)
-            const isTW = /^\d{4,6}(\.TW)?$/i.test(sym);
+            const isTW = /^\d{4,6}[A-Z]?(\.TW)?$/i.test(sym);
             const symFull = isTW && !sym.endsWith('.TW') ? sym + '.TW' : sym;
             if (isTW && document.getElementById('lf-symbol')) {
                 document.getElementById('lf-symbol').value = symFull;
