@@ -218,29 +218,31 @@ YC.stocks = (() => {
     symbolInput.addEventListener('input', (e) => {
       let val = e.target.value.trim().toUpperCase();
       
-      if (/^\d{4,6}[A-Z]?$/.test(val)) {
-        val = val + '.TW';
-        e.target.value = val;
-        typeSelect.value = 'tw';
-        fetchTWName(val);
+      if (/^\d{4,6}[A-Z]?$/.test(val) || val.endsWith('.TW')) {
+        if (!typeSelect.value.includes('etf')) typeSelect.value = 'tw';
       } else if (/^[A-Z]{1,5}$/.test(val)) {
         if (!typeSelect.value.includes('etf')) typeSelect.value = 'us';
         nameGroup.style.display = 'none';
-      } else if (val.endsWith('.TW')) {
-        if (!typeSelect.value.includes('etf')) typeSelect.value = 'tw';
-        // Don't auto-fetch on every keystroke; wait for query button or blur
       } else {
         nameGroup.style.display = 'none';
       }
     });
 
     symbolInput.addEventListener('blur', () => {
-      const val = symbolInput.value.trim().toUpperCase();
+      let val = symbolInput.value.trim().toUpperCase();
+      if (/^\d{4,6}[A-Z]?$/.test(val)) {
+        val = val + '.TW';
+        symbolInput.value = val;
+      }
       if (val.endsWith('.TW')) fetchTWName(val);
     });
 
     document.getElementById('btn-query-name').addEventListener('click', () => {
-      const val = symbolInput.value.trim().toUpperCase();
+      let val = symbolInput.value.trim().toUpperCase();
+      if (/^\d{4,6}[A-Z]?$/.test(val)) {
+        val = val + '.TW';
+        symbolInput.value = val;
+      }
       if (val.endsWith('.TW')) {
         fetchTWName(val);
       } else {
@@ -252,7 +254,11 @@ YC.stocks = (() => {
   }
 
   async function doAddStock() {
-    const symbolRaw = document.getElementById('add-symbol-input').value.trim().toUpperCase();
+    let symbolRaw = document.getElementById('add-symbol-input').value.trim().toUpperCase();
+    if (/^\d{4,6}[A-Z]?$/.test(symbolRaw)) {
+        symbolRaw += '.TW';
+        document.getElementById('add-symbol-input').value = symbolRaw;
+    }
     const type      = document.getElementById('add-type-input').value;
     const res       = document.getElementById('add-result');
     if (!symbolRaw) { res.textContent = '請輸入代碼'; return; }
