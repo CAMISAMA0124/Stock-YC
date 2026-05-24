@@ -333,6 +333,82 @@ app.get('/api/metals', async (req, res) => {
     }
 });
 
+// ── Taiwan Stock Chinese Name API ────────────────────────────────────────────
+// Fetches Chinese stock names from TWSE & TPEx OpenAPI with 24-hour memory cache.
+// Merges TWSE (上市) and TPEx (上櫃) into a single code→name map.
+let twNameCache = null;
+let twNameCacheTime = 0;
+
+async function fetchTWNameCache() {
+    const now = Date.now();
+    // Return early if cache is still fresh (24 hours)
+    if (twNameCache && (now - twNameCacheTime) < 24 * 60 * 60 * 1000) {
+        return twNameCache;
+    }
+
+    const map = {};
+
+    try {
+        const [twseRes, tpexRes] = await Promise.allSettled([
+            fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL'),
+            fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes')
+        ]);
+
+        // TWSE listed stocks (上市)
+        if (twseRes.status === 'fulfilled' && twseRes.value.ok) {
+            const data = await twseRes.value.json();
+            for (const item of data) {
+                if (item.Code && item.Name) {
+                    map[item.Code.trim()] = item.Name.trim();
+                }
+            }
+            console.log(`[TW Names] TWSE: loaded ${Object.keys(map).length} entries`);
+        } else {
+            console.warn('[TW Names] TWSE fetch failed or non-OK');
+        }
+
+        // TPEx OTC stocks (上櫃)
+        if (tpexRes.status === 'fulfilled' && tpexRes.value.ok) {
+            const data = await tpexRes.value.json();
+            const before = Object.keys(map).length;
+            for (const item of data) {
+                // TPEx uses 'SecuritiesCompanyCode' and 'CompanyName'
+                const code = (item.SecuritiesCompanyCode || item.Code || '').trim();
+                const name = (item.CompanyName || item.Name || '').trim();
+                if (code && name) map[code] = name;
+            }
+            console.log(`[TW Names] TPEx: added ${Object.keys(map).length - before} entries`);
+        } else {
+            console.warn('[TW Names] TPEx fetch failed or non-OK');
+        }
+    } catch (e) {
+        console.warn('[TW Names] Cache fetch error:', e.message);
+    }
+
+    if (Object.keys(map).length > 0) {
+        twNameCache = map;
+        twNameCacheTime = now;
+    }
+
+    return map;
+}
+
+// Pre-warm the cache on startup in background (non-blocking)
+fetchTWNameCache().catch(() => {});
+
+app.get('/api/twname/:symbol', async (req, res) => {
+    // Accept both "2330" and "2330.TW" formats
+    const code = req.params.symbol.replace(/\.TW$/i, '').trim();
+    try {
+        const nameMap = await fetchTWNameCache();
+        const name = nameMap[code] || null;
+        res.json({ success: !!name, code, name });
+    } catch (error) {
+        console.error('[TW Name API]', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`⚡ YC Local API Server is running on http://localhost:${PORT}`);

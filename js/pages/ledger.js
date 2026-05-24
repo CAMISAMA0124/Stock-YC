@@ -671,15 +671,32 @@ YC.ledgerPage = (() => {
     }
 
     async function queryStockPrice() {
-        const sym = document.getElementById('lf-symbol')?.value?.trim();
+        const sym = document.getElementById('lf-symbol')?.value?.trim()?.toUpperCase();
         if (!sym) return;
         const nameEl  = document.getElementById('lf-name');
         const priceEl = document.getElementById('lf-price');
-        if (nameEl) nameEl.placeholder = '查詢中…';
+        if (nameEl) { nameEl.value = ''; nameEl.placeholder = '查詢中…'; }
+
         try {
-            const data = await YC.api.fetchStock(sym);
+            // Parallel: fetch Yahoo price data + TW Chinese name (if applicable)
+            const isTW = /^\d{4,6}(\.TW)?$/i.test(sym);
+            const symFull = isTW && !sym.endsWith('.TW') ? sym + '.TW' : sym;
+            if (isTW && document.getElementById('lf-symbol')) {
+                document.getElementById('lf-symbol').value = symFull;
+            }
+
+            const [stockData, twNameData] = await Promise.allSettled([
+                YC.api.fetchStock(symFull),
+                isTW ? fetch(`/api/twname/${encodeURIComponent(symFull)}`).then(r => r.json()) : Promise.resolve(null)
+            ]);
+
+            const data = stockData.status === 'fulfilled' ? stockData.value : null;
+            const twName = (twNameData.status === 'fulfilled' && twNameData.value?.success)
+                ? twNameData.value.name : null;
+
             if (data) {
-                if (nameEl)  nameEl.value  = data.name || sym;
+                const displayName = twName || data.name || symFull;
+                if (nameEl)  nameEl.value  = displayName;
                 if (priceEl) priceEl.value = data.price || '';
             } else {
                 alert('無法查到此代號，請確認格式（台股加 .TW，如 2330.TW）');

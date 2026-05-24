@@ -151,9 +151,21 @@ YC.stocks = (() => {
 
       <div class="form-group">
         <label class="form-label">股票代碼</label>
-        <input id="add-symbol-input" class="form-input" placeholder="例如：2330.TW 或 AAPL" style="text-transform:uppercase">
+        <div style="display:flex;gap:8px">
+          <input id="add-symbol-input" class="form-input" placeholder="例如：2330.TW 或 AAPL" style="text-transform:uppercase;flex:1">
+          <button class="btn btn-secondary" id="btn-query-name" style="white-space:nowrap;padding:0 14px;font-size:12px">查詢</button>
+        </div>
         <div class="form-hint">台股請加 .TW 後綴，美股直接輸入代碼</div>
       </div>
+
+      <div class="form-group" id="tw-name-group" style="display:none">
+        <label class="form-label">中文名稱 <span style="font-weight:400;color:var(--text-3);font-size:11px">（自動查詢，可修改）</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="add-name-input" class="form-input" placeholder="查詢中…" style="flex:1">
+          <span id="add-name-status" style="font-size:18px;width:24px;text-align:center"></span>
+        </div>
+      </div>
+
       <div class="form-group">
         <label class="form-label">類別</label>
         <select id="add-type-input" class="form-input">
@@ -173,34 +185,66 @@ YC.stocks = (() => {
 
     document.body.appendChild(overlay);
     
-    // Add auto-detection listener
     const symbolInput = document.getElementById('add-symbol-input');
-    const typeSelect = document.getElementById('add-type-input');
+    const typeSelect  = document.getElementById('add-type-input');
+    const nameGroup   = document.getElementById('tw-name-group');
+    const nameInput   = document.getElementById('add-name-input');
+    const nameStatus  = document.getElementById('add-name-status');
+
+    // Fetch TW Chinese name from server
+    async function fetchTWName(sym) {
+      if (!sym.endsWith('.TW')) return;
+      nameGroup.style.display = 'block';
+      nameInput.value = '';
+      nameInput.placeholder = '查詢中…';
+      nameStatus.textContent = '⏳';
+      try {
+        const res = await fetch(`/api/twname/${encodeURIComponent(sym)}`);
+        const data = await res.json();
+        if (data.success && data.name) {
+          nameInput.value = data.name;
+          nameStatus.textContent = '✅';
+        } else {
+          nameInput.value = '';
+          nameInput.placeholder = '查無中文名，請手動輸入';
+          nameStatus.textContent = '✏️';
+        }
+      } catch {
+        nameInput.placeholder = '查詢失敗，請手動輸入';
+        nameStatus.textContent = '✏️';
+      }
+    }
     
     symbolInput.addEventListener('input', (e) => {
       let val = e.target.value.trim().toUpperCase();
       
-      // 1. Auto-.TW for 4-6 digit numbers (Taiwan stocks / ETFs)
       if (/^\d{4,6}$/.test(val)) {
         val = val + '.TW';
         e.target.value = val;
-        // Auto-select type
         typeSelect.value = 'tw';
+        fetchTWName(val);
+      } else if (/^[A-Z]{1,5}$/.test(val)) {
+        if (!typeSelect.value.includes('etf')) typeSelect.value = 'us';
+        nameGroup.style.display = 'none';
+      } else if (val.endsWith('.TW')) {
+        if (!typeSelect.value.includes('etf')) typeSelect.value = 'tw';
+        // Don't auto-fetch on every keystroke; wait for query button or blur
+      } else {
+        nameGroup.style.display = 'none';
       }
-      
-      // 2. Auto-select US for common US patterns (length 1-5, no dot, no digits)
-      else if (/^[A-Z]{1,5}$/.test(val)) {
-         // Don't override if user already picked ETF
-         if (!typeSelect.value.includes('etf')) {
-           typeSelect.value = 'us';
-         }
-      }
-      
-      // 3. Auto-select TW if ends with .TW
-      else if (val.endsWith('.TW')) {
-        if (!typeSelect.value.includes('etf')) {
-          typeSelect.value = 'tw';
-        }
+    });
+
+    symbolInput.addEventListener('blur', () => {
+      const val = symbolInput.value.trim().toUpperCase();
+      if (val.endsWith('.TW')) fetchTWName(val);
+    });
+
+    document.getElementById('btn-query-name').addEventListener('click', () => {
+      const val = symbolInput.value.trim().toUpperCase();
+      if (val.endsWith('.TW')) {
+        fetchTWName(val);
+      } else {
+        nameGroup.style.display = 'none';
       }
     });
 
@@ -209,8 +253,8 @@ YC.stocks = (() => {
 
   async function doAddStock() {
     const symbolRaw = document.getElementById('add-symbol-input').value.trim().toUpperCase();
-    const type = document.getElementById('add-type-input').value;
-    const res = document.getElementById('add-result');
+    const type      = document.getElementById('add-type-input').value;
+    const res       = document.getElementById('add-result');
     if (!symbolRaw) { res.textContent = '請輸入代碼'; return; }
 
     res.innerHTML = '<span class="text-muted">確認中...</span>';
@@ -221,10 +265,15 @@ YC.stocks = (() => {
       return;
     }
 
-    YC.portfolio.addToWatchlist({ symbol: symbolRaw, name: data.name, shortName: symbolRaw.replace('.TW', ''), type, industry: '自選' });
-    YC.state.setMarketData(symbolRaw, data);
+    // Prioritize user-entered / TWSE-fetched Chinese name for TW stocks
+    const customName = document.getElementById('add-name-input')?.value?.trim();
+    const finalName  = customName || data.name;
 
-    res.innerHTML = `<span style="color:var(--t0)">✅ 已新增 ${data.name} 至 ${type.includes('tw') ? '台股' : '美股'}清單</span>`;
+    YC.portfolio.addToWatchlist({ symbol: symbolRaw, name: finalName, shortName: symbolRaw.replace('.TW', ''), type, industry: '自選' });
+    // Persist the correct name into market data cache too
+    YC.state.setMarketData(symbolRaw, { ...data, name: finalName });
+
+    res.innerHTML = `<span style="color:var(--t0)">✅ 已新增 ${finalName} 至 ${type.includes('tw') ? '台股' : '美股'}清單</span>`;
     setTimeout(() => {
       closeModal('add-stock-modal');
       renderList();
