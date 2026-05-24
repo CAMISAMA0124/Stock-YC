@@ -181,6 +181,7 @@ YC.state = (() => {
   };
 
   let data = null;
+  let isSyncing = false;
 
   function load() {
     const saved = localStorage.getItem(LS_KEY);
@@ -246,8 +247,9 @@ YC.state = (() => {
     if (!data) load();
 
     // Automatically keep cashAssets and totalAssets in sync if cashMode is 'auto'
-    if (data.settings && data.settings.cashMode === 'auto' && window.YC && YC.ledgerPage && typeof YC.ledgerPage.calcTotals === 'function') {
+    if (!isSyncing && data.settings && data.settings.cashMode === 'auto' && window.YC && YC.ledgerPage && typeof YC.ledgerPage.calcTotals === 'function') {
       try {
+        isSyncing = true;
         const t = YC.ledgerPage.calcTotals();
         const calculatedCash = (t.bank || 0) + (t.precious || 0) + (t.insurance || 0) + (t.other || 0) - (t.loan || 0);
         if (data.settings.cashAssets !== calculatedCash) {
@@ -263,6 +265,8 @@ YC.state = (() => {
         }
       } catch (e) {
         console.warn('[State] Dynamic cashAssets calculation failed:', e.message);
+      } finally {
+        isSyncing = false;
       }
     }
 
