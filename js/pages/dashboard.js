@@ -632,8 +632,8 @@ YC.dashboardPage = (() => {
     const buildPctStr = (val) => (val > 0 ? '+' : '') + val.toFixed(2) + '%';
     const buildPnlPctStr = (val, sign) => (val > 0 ? '+' : (val < 0 ? '' : '')) + val.toFixed(2) + '%';
     
-    const dayColor = dayPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
-    const pnlColor = totalPnl >= 0 ? 'var(--t0)' : 'var(--t3)';
+    const dayColor = dayPnl >= 0 ? 'var(--t3)' : 'var(--t0)';
+    const pnlColor = totalPnl >= 0 ? 'var(--t3)' : 'var(--t0)';
     const temp = YC.indicators.temperatureScore({ 
         price: mkt.price, 
         high52w: mkt.high52w, 
