@@ -57,6 +57,7 @@ YC.dashboardPage = (() => {
         </div>
         <div id="dash-adjust-banner"></div>
         <div id="dash-stack-bar" style="margin-top:14px"></div>
+        <div id="dash-deviation-summary" style="margin-top:14px; border-top:1px dashed rgba(255,255,255,0.08); padding-top:12px; display:none"></div>
       </div>
 
       <!-- Opportunity Radar (NEW) -->
@@ -124,8 +125,9 @@ YC.dashboardPage = (() => {
     // ── Dividend Card ─────────────────────────────────
     renderDividendCard(holdings);
 
-    // ── Rebalance Recommendation Card ─────────────────
-    renderRebalanceCard(holdings, combinedSettings.totalAssets);
+    // ── Rebalance Card: hide (info is now in allocation card deviation summary)
+    const rebalCardEl = document.getElementById('dash-rebalance-card');
+    if (rebalCardEl) rebalCardEl.style.display = 'none';
 
     // ── Health & Sector ───────────────────────────────
     renderHealthAndSector(holdings);
@@ -160,47 +162,24 @@ YC.dashboardPage = (() => {
         const amt = Math.abs(alloc.adjustmentAmt);
         const dirText = dir === 'reduce' ? '⚠️ 建議調節（出售）' : dir === 'add' ? '🚀 建議加碼（買入）' : '✅ 持倉合理';
         
-        // --- 智慧推薦邏輯 (區分市場 & 買賣) ---
-        let recHtml = '';
-        if (dir === 'reduce' && holdings.length > 0) {
-          const hotTW = holdings.filter(h => h.symbol.endsWith('.TW') && h.tempScore >= 50).sort((a,b) => b.tempScore - a.tempScore);
-          const hotUS = holdings.filter(h => !h.symbol.endsWith('.TW') && h.tempScore >= 50).sort((a,b) => b.tempScore - a.tempScore);
-          
-          let recs = [];
-          if (hotTW.length > 0) recs.push(`🇹🇼 <strong style="color:var(--t3)">${hotTW[0].name.slice(0,4)}</strong>`);
-          if (hotUS.length > 0) recs.push(`🇺🇸 <strong style="color:var(--t3)">${hotUS[0].name.slice(0,4)}</strong>`);
-          
-          if (recs.length > 0) {
-            recHtml = `<div style="font-size:12px; margin-top:2px; color:var(--text-3)">💡 <span style="color:var(--t2)">優先減碼過熱部位：</span>${recs.join('、')}</div>`;
-          }
-        } else if (dir === 'add') {
-          const wl = window.YC?.portfolio?.getWatchlistEnriched('all') || [];
-          const coldTW = wl.filter(w => w.symbol.endsWith('.TW') && w.hasData && w.tempScore <= 35).sort((a,b) => a.tempScore - b.tempScore);
-          const coldUS = wl.filter(w => !w.symbol.endsWith('.TW') && w.hasData && w.tempScore <= 35).sort((a,b) => a.tempScore - b.tempScore);
-
-          let recs = [];
-          if (coldTW.length > 0) recs.push(`🇹🇼 <strong style="color:var(--t0)">${coldTW[0].name.slice(0,4)}</strong>`);
-          if (coldUS.length > 0) recs.push(`🇺🇸 <strong style="color:var(--t0)">${coldUS[0].name.slice(0,4)}</strong>`);
-
-          if (recs.length > 0) {
-            recHtml = `<div style="font-size:12px; margin-top:2px; color:var(--text-3)">💡 <span style="color:var(--t0)">推薦加碼低溫標的：</span>${recs.join('、')}</div>`;
-          }
-        }
-
         banner.innerHTML = `<div class="adjust-banner ${dir}" style="display:flex; flex-direction:column; align-items:stretch; gap:6px">
           <div style="display:flex; justify-content:space-between; align-items:center">
             <span class="adjust-label">${dirText}</span>
             <span class="adjust-amount ${dir}">NT$ ${YC.allocation.formatNTD(amt)}</span>
           </div>
-          ${recHtml}
         </div>`;
       }
 
       const stackEl = document.getElementById('dash-stack-bar');
       if (stackEl) stackEl.innerHTML = YC.allocation.renderStackBar(alloc.suggestedEquityPct, alloc.suggestedCashPct);
+
+      // ── Deviation Summary inside Allocation Card ──────
+      renderDeviationSummary(holdings, combinedSettings.totalAssets, alloc.suggestedEquityPct);
     } else if (eqEl && !alloc.ready) {
       eqEl.textContent = '—';
       document.getElementById('dash-alloc-desc').textContent = alloc.reason || '請設定總資產';
+      // still try to render deviation summary if holdings exist
+      renderDeviationSummary(holdings, combinedSettings.totalAssets, 0);
     }
 
     // ── Sentiment ─────────────────────────────────────
@@ -294,8 +273,11 @@ YC.dashboardPage = (() => {
 
     let html = `
       <div class="card" style="background: linear-gradient(145deg, rgba(0, 212, 170, 0.05) 0%, rgba(20, 20, 20, 1) 100%); border-color: rgba(0, 212, 170, 0.2)">
-        <div class="card-title">🎯 今日多空診斷雷達</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px">
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">🎯 今日多空診斷雷達</div>
+          <div style="font-size:9px; color:var(--text-3);">*基於短線動能，供波段參考</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
           <!-- Taiwan Section -->
           <div>
             <div style="color:var(--text-1); font-size:12px; font-weight:700; border-left:3px solid var(--t0); padding-left:8px; margin-bottom:8px">🇹🇼 台股市場</div>
@@ -307,24 +289,46 @@ YC.dashboardPage = (() => {
             <div id="radar-us-list"></div>
           </div>
         </div>
+        
+        <!-- AI section -->
+        <div style="margin-top:14px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.08)">
+          <button class="btn btn-ghost btn-sm btn-full" id="btn-radar-ai" style="display:flex; align-items:center; justify-content:center; gap:6px; color:var(--t0); font-weight:700">
+            🔮 AI 診斷當日最佳買股 (基於低溫自選)
+          </button>
+          <div id="radar-ai-result" style="display:none"></div>
+        </div>
       </div>
     `;
     card.innerHTML = html;
 
-    const renderItems = (items, type) => {
-      if (!items.length) return `<div style="font-size:11px; color:var(--text-3); padding:8px">暫無建議</div>`;
-      return items.slice(0, 3).map(s => {
+    const renderGroup = (buyItems, sellItems) => {
+      if (!buyItems.length && !sellItems.length) {
+         return `<div style="font-size:11px; color:var(--text-3); padding:8px">目前無極端買點</div>`;
+      }
+      
+      let res = '';
+      if (buyItems.length > 0) {
+        res += `<div style="font-size:10px; color:var(--t0); font-weight:700; margin:6px 0 4px">🚀 低溫尋寶</div>`;
+        res += buyItems.slice(0, 3).map(s => renderItem(s, 'buy')).join('');
+      }
+      if (sellItems.length > 0) {
+        res += `<div style="font-size:10px; color:var(--pos); font-weight:700; margin:6px 0 4px">⚠️ 高溫警戒</div>`;
+        res += sellItems.slice(0, 3).map(s => renderItem(s, 'sell')).join('');
+      }
+      return res;
+    };
+
+    const renderItem = (s, type) => {
         const isSell = type === 'sell';
-        const color = isSell ? 'var(--t3)' : 'var(--t0)';
-        const icon = isSell ? '⚠️' : '🚀';
-        const label = isSell ? '減碼' : '加碼';
+        const color = isSell ? 'var(--pos)' : 'var(--t0)';
+        const label = isSell ? '建議減碼' : '建議加碼';
         const symbolDisplay = s.symbol.replace('.TW', '');
         return `
           <div class="stock-card tc0" style="padding:6px 8px; margin-bottom:6px; cursor:pointer; background:rgba(255,255,255,0.03)" onclick="YC.stocks.openDetail('${s.symbol}')">
             <div style="flex:1">
               <div style="font-size:12px; font-weight:700; display:flex; justify-content:space-between">
                 <span>${s.name.slice(0,6)}</span>
-                <span style="color:${color}">${icon} ${label}</span>
+                <span style="color:${color}; font-size:10px">${label}</span>
               </div>
               <div style="font-size:10px; color:var(--text-3); margin-top:2px">
                 ${symbolDisplay} ｜ 溫度: <span style="color:${color}">${s.tempScore}°C</span>
@@ -332,11 +336,72 @@ YC.dashboardPage = (() => {
             </div>
           </div>
         `;
-      }).join('');
     };
 
-    document.getElementById('radar-tw-list').innerHTML = renderItems(buyTW, 'buy') + renderItems(sellTW, 'sell');
-    document.getElementById('radar-us-list').innerHTML = renderItems(buyUS, 'buy') + renderItems(sellUS, 'sell');
+    document.getElementById('radar-tw-list').innerHTML = renderGroup(buyTW, sellTW);
+    document.getElementById('radar-us-list').innerHTML = renderGroup(buyUS, sellUS);
+
+    const btnRadarAi = document.getElementById('btn-radar-ai');
+    if (btnRadarAi) {
+      btnRadarAi.onclick = async () => {
+        const resultEl = document.getElementById('radar-ai-result');
+        if (!resultEl) return;
+        
+        const settings = YC.state.get().settings || {};
+        const hasKey = !!(settings.apiKeyOpenAI || settings.apiKeyGemini || settings.apiKeyClaude || settings.apiKey);
+        if (!hasKey) {
+          resultEl.style.display = 'block';
+          resultEl.innerHTML = `<div style="font-size:12px; color:var(--pos); background:rgba(255,80,80,0.07); border:1px solid rgba(255,80,80,0.15); border-radius:8px; padding:10px; margin-top:8px">⚠️ 請先至「設定」頁面設定您的 AI API Key。</div>`;
+          return;
+        }
+
+        // Get candidates: all watchlist items that are low temperature
+        let candidates = wl.filter(s => s.hasData && s.tempScore <= 35);
+        if (candidates.length === 0) {
+          // Fallback: take top 5 lowest temperature items from the watchlist
+          candidates = wl.filter(s => s.hasData).sort((a, b) => a.tempScore - b.tempScore).slice(0, 5);
+        }
+
+        if (candidates.length === 0) {
+          resultEl.style.display = 'block';
+          resultEl.innerHTML = `<div style="font-size:12px; color:var(--pos); background:rgba(255,80,80,0.07); border:1px solid rgba(255,80,80,0.15); border-radius:8px; padding:10px; margin-top:8px">⚠️ 請先在自選清單中加入股票，AI 才能為您進行挑選診斷。</div>`;
+          return;
+        }
+
+        btnRadarAi.disabled = true;
+        btnRadarAi.textContent = '🔮 AI 診斷中...';
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = `<div class="ai-result ai-typing" style="margin-top:10px"></div>`;
+        const streamEl = resultEl.querySelector('.ai-result');
+
+        const renderMYCdown = (text) => {
+          return text
+            .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text-1)">$1</strong>')
+            .replace(/\n/g, '<br>');
+        };
+
+        await YC.ai.analyzeBestBuy(candidates, {
+          onChunk: (chunk, full) => {
+            if (streamEl) streamEl.innerHTML = renderMYCdown(full);
+          },
+          onDone: (text) => {
+            if (streamEl) {
+              streamEl.innerHTML = renderMYCdown(text);
+              streamEl.classList.remove('ai-typing');
+            }
+            btnRadarAi.disabled = false;
+            btnRadarAi.textContent = '🔄 重新診斷當日最佳買股';
+          },
+          onError: (msg) => {
+            if (resultEl) {
+              resultEl.innerHTML = `<div style="font-size:12px; color:var(--pos); background:rgba(255,80,80,0.07); border:1px solid rgba(255,80,80,0.15); border-radius:8px; padding:10px; margin-top:8px">❌ 診斷失敗：${msg}</div>`;
+            }
+            btnRadarAi.disabled = false;
+            btnRadarAi.textContent = '❌ 重試診斷當日最佳買股';
+          }
+        });
+      };
+    }
   }
 
   /* ── P&L Summary Card ─────────────────────────── */
@@ -402,7 +467,7 @@ YC.dashboardPage = (() => {
     const divData = YC.allocation.computePortfolioDividends(holdings);
     const avgExpRatio = YC.allocation.computeAverageExpenseRatio(holdings);
     
-    const expColor = avgExpRatio > 0.50 ? 'var(--neg)' : avgExpRatio < 0.20 ? 'var(--pos)' : 'var(--text-1)';
+    const expColor = avgExpRatio > 0.50 ? 'var(--pos)' : avgExpRatio < 0.20 ? 'var(--neg)' : 'var(--text-1)';
     
     card.style.display = 'block';
     card.innerHTML = `
@@ -772,7 +837,7 @@ YC.dashboardPage = (() => {
         <div style="display:flex; gap:6px; font-size:10px">
           <div style="flex:1; background:rgba(255,80,80,0.07); padding:10px; border-radius:8px; border:1px solid rgba(255,80,80,0.15); text-align:center">
             <div style="color:var(--text-3); margin-bottom:4px; font-size:9px">🐻 保守情境</div>
-            <div style="color:var(--neg); font-weight:800; font-size:15px">${ageStr(bearAge)}</div>
+            <div style="color:var(--pos); font-weight:800; font-size:15px">${ageStr(bearAge)}</div>
             <div style="color:var(--text-3); font-size:9px; margin-top:3px">年化 ${(style.conservative*100).toFixed(0)}%</div>
           </div>
           <div style="flex:1; background:rgba(0,229,255,0.07); padding:10px; border-radius:8px; border:1px solid rgba(0,229,255,0.2); text-align:center">
@@ -782,7 +847,7 @@ YC.dashboardPage = (() => {
           </div>
           <div style="flex:1; background:rgba(0,212,100,0.07); padding:10px; border-radius:8px; border:1px solid rgba(0,212,100,0.15); text-align:center">
             <div style="color:var(--text-3); margin-bottom:4px; font-size:9px">🚀 樂觀情境</div>
-            <div style="color:var(--pos); font-weight:800; font-size:15px">${ageStr(bullAge)}</div>
+            <div style="color:var(--neg); font-weight:800; font-size:15px">${ageStr(bullAge)}</div>
             <div style="color:var(--text-3); font-size:9px; margin-top:3px">年化 ${(style.optimistic*100).toFixed(0)}%</div>
           </div>
         </div>
@@ -795,6 +860,159 @@ YC.dashboardPage = (() => {
     </div>`;
   }
 
+
+  /* ── Deviation Summary (inside Allocation Card) ─── */
+  function renderDeviationSummary(holdings, totalAssets, suggestedEquityPct) {
+    const el = document.getElementById('dash-deviation-summary');
+    if (!el) return;
+
+    // Filter to holdings with shares/value
+    const allHoldings = (holdings || []).filter(h => (h.shares || 0) > 0);
+    if (!allHoldings.length || !totalAssets || totalAssets <= 0) { el.style.display = 'none'; return; }
+
+    // Check if any holding has manual targetWeight
+    const withManualTarget = allHoldings.filter(h => (h.targetWeight || 0) > 0);
+
+    // Determine effective target weights:
+    // - If manual targets exist → use them
+    // - Otherwise → auto-split suggestedEquityPct equally among all holdings
+    let items;
+    let usingAutoTarget = false;
+
+    if (withManualTarget.length > 0) {
+      // Use manual targets for those that have them
+      items = withManualTarget.map(h => {
+        const mkt = YC.state.getMarketData(h.symbol);
+        const price = mkt ? (mkt.price || h.costPrice || 0) : (h.costPrice || 0);
+        const currentVal = price * (h.shares || 0);
+        const currentPct = (currentVal / totalAssets) * 100;
+        const deviationPct = currentPct - (h.targetWeight || 0);
+        return { name: h.name || h.symbol, symbol: h.symbol, targetPct: h.targetWeight, currentPct, deviationPct };
+      });
+    } else {
+      // Auto-mode: derive equal-weight targets from suggestedEquityPct
+      usingAutoTarget = true;
+      const eqPct = (suggestedEquityPct > 0) ? suggestedEquityPct : 100;
+      const autoTarget = eqPct / allHoldings.length;
+      items = allHoldings.map(h => {
+        const mkt = YC.state.getMarketData(h.symbol);
+        const price = mkt ? (mkt.price || h.costPrice || 0) : (h.costPrice || 0);
+        const currentVal = price * (h.shares || 0);
+        const currentPct = (currentVal / totalAssets) * 100;
+        const deviationPct = currentPct - autoTarget;
+        return { name: h.name || h.symbol, symbol: h.symbol, targetPct: autoTarget, currentPct, deviationPct };
+      });
+    }
+
+    const maxAbsDev = Math.max(...items.map(i => Math.abs(i.deviationPct)));
+    const hasCritical = maxAbsDev >= 5;
+    const hasWarning = !hasCritical && maxAbsDev >= 3;
+
+    // Sort by absolute deviation descending to find worst offenders
+    const sorted = [...items].sort((a, b) => Math.abs(b.deviationPct) - Math.abs(a.deviationPct));
+    const worst = sorted[0];
+    const needsAction = sorted.filter(i => Math.abs(i.deviationPct) >= 5);
+    const nearBoundary = sorted.filter(i => Math.abs(i.deviationPct) >= 3 && Math.abs(i.deviationPct) < 5);
+    const balanced = sorted.filter(i => Math.abs(i.deviationPct) < 3);
+
+    // Overall status label
+    let statusEmoji, statusLabel, statusColor, borderColor;
+    if (hasCritical) {
+      statusEmoji = '🚨'; statusLabel = '需要再平衡'; statusColor = 'var(--pos)';
+      borderColor = 'rgba(255,80,80,0.4)';
+    } else if (hasWarning) {
+      statusEmoji = '⚠️'; statusLabel = '輕微偏移'; statusColor = 'var(--accent)';
+      borderColor = 'rgba(124,111,255,0.4)';
+    } else {
+      statusEmoji = '✅'; statusLabel = '配置平衡'; statusColor = 'var(--t0)';
+      borderColor = 'rgba(0,212,170,0.3)';
+    }
+
+    // Max deviation bar: map 0~15% → 0~100% width, clamp
+    const barPct = Math.min(100, (maxAbsDev / 15) * 100);
+    const barColor = hasCritical ? 'var(--pos)' : hasWarning ? 'var(--accent)' : 'var(--t0)';
+
+    // Worst asset detail line
+    const worstSign = worst.deviationPct > 0 ? '+' : '';
+    const worstLabel = worst.name && worst.name.length <= 5 ? worst.name : (worst.symbol || '').replace('.TW','').slice(0,6);
+    const worstColor = Math.abs(worst.deviationPct) >= 5 ? 'var(--pos)'
+                     : Math.abs(worst.deviationPct) >= 3 ? 'var(--accent)' : 'var(--t0)';
+
+    // Summary chips: show name/symbol + deviation % + NTD amount
+    const makeChips = (arr, chipColor) => arr.slice(0,3).map(i => {
+      const sign = i.deviationPct > 0 ? '+' : '';
+      const label = i.name && i.name.length <= 5 ? i.name : (i.symbol || '').replace('.TW','').slice(0,6);
+      const ntdAmt = Math.round(Math.abs(i.deviationPct) / 100 * totalAssets);
+      const ntdStr = ntdAmt >= 10000
+        ? 'NT$' + (ntdAmt / 10000).toFixed(1) + '萬'
+        : 'NT$' + ntdAmt.toLocaleString('zh-TW');
+      const finalColor = i.deviationPct < 0 ? 'var(--neg)' : chipColor;
+      return `<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.05);border:1px solid ${finalColor}44;border-radius:20px;padding:2px 7px;font-size:10px;color:${finalColor};font-weight:700">${label} <span style="opacity:0.8">${sign}${i.deviationPct.toFixed(1)}%</span><span style="opacity:0.55;font-size:9px;margin-left:1px">(${ntdStr})</span></span>`;
+    }).join('');
+
+    let contentHtml = '';
+
+    if (needsAction.length) {
+      contentHtml += `
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--pos);font-weight:700;margin-bottom:4px">🔴 偏離 ≥5%（建議調整）</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">${makeChips(needsAction, 'var(--pos)')}</div>
+        </div>`;
+    }
+    if (nearBoundary.length) {
+      contentHtml += `
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:4px">🟡 偏離 3~5%（留意觀察）</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">${makeChips(nearBoundary, 'var(--accent)')}</div>
+        </div>`;
+    }
+    if (balanced.length && !hasCritical) {
+      contentHtml += `
+        <div>
+          <div style="font-size:10px;color:var(--t0);font-weight:700;margin-bottom:4px">🟢 偏離 <3%（目標內）</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">${makeChips(balanced, 'var(--t0)')}</div>
+        </div>`;
+    }
+
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:1px">⚖️ 再平衡診斷</div>
+          ${usingAutoTarget ? `<span style="font-size:9px;background:rgba(124,111,255,0.15);color:var(--accent);border:1px solid rgba(124,111,255,0.3);border-radius:20px;padding:1px 6px;font-weight:600">自動等權</span>` : ''}
+        </div>
+        <div style="font-size:12px;font-weight:800;color:${statusColor}">${statusEmoji} ${statusLabel}</div>
+      </div>
+
+      <!-- Max deviation gauge -->
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span style="font-size:11px;color:var(--text-3)">最大偏離幅度</span>
+          <span style="font-size:13px;font-weight:800;color:${worstColor}">
+            ${worstLabel}&nbsp;
+            <span style="font-size:11px">${worstSign}${worst.deviationPct.toFixed(1)}%</span>
+          </span>
+        </div>
+        <div style="height:5px;background:var(--bg-input);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${barPct}%;background:${barColor};border-radius:4px;transition:width 0.6s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:3px">
+          <span style="font-size:9px;color:var(--text-3)">0%</span>
+          <span style="font-size:9px;color:var(--accent)">3%</span>
+          <span style="font-size:9px;color:var(--pos)">5%</span>
+          <span style="font-size:9px;color:var(--text-3)">15%+</span>
+        </div>
+      </div>
+
+      <!-- Asset breakdown -->
+      ${contentHtml}
+
+      ${hasCritical ? `
+      <div style="background:rgba(255,80,80,0.08);border-left:3px solid var(--pos);padding:8px 10px;border-radius:4px;margin-top:8px;font-size:11px;color:var(--text-1);line-height:1.5">
+        依「<strong style='color:var(--pos)'>幅度制</strong>」原則：偏離已達 5%，請執行再平衡以控制風險。
+      </div>` : ''}
+    `;
+  }
 
   return { render, refreshData };
 })();

@@ -10,6 +10,7 @@ YC.stocks = (() => {
   let currentFilter = 'all';
 
   const TABS = [
+    { id: 'holdings', label: '💼 我的持倉' },
     { id: 'tw', label: '主要市場 台股' },
     { id: 'us', label: '海外市場 美股' },
     { id: 'twetf', label: '主要市場 ETF' },
@@ -100,7 +101,12 @@ YC.stocks = (() => {
     const listEl = document.getElementById('stock-list');
     if (!listEl) return;
 
-    let list = YC.portfolio.getWatchlistEnriched(currentTab);
+    let list = [];
+    if (currentTab === 'holdings') {
+      list = YC.portfolio.getEnriched() || [];
+    } else {
+      list = YC.portfolio.getWatchlistEnriched(currentTab);
+    }
 
     // Industry filter
     if (currentIndustry !== 'all' && currentIndustry !== '全部') {
@@ -639,8 +645,8 @@ YC.stocks = (() => {
       if (mddEl) {
         mddEl.textContent = `MDD -${mddVal}%`;
         if (parseFloat(mddVal) >= 30) {
-          mddEl.style.background = 'rgba(0,212,170,0.15)';
-          mddEl.style.color = 'var(--neg)';
+          mddEl.style.background = 'rgba(255,53,96,0.15)';
+          mddEl.style.color = 'var(--pos)';
           mddEl.innerHTML += ' ⚠️高波動';
         }
       }
@@ -933,7 +939,7 @@ YC.stocks = (() => {
 
       renderCashFlow(cfData, box);
     } catch(err) {
-      box.innerHTML = '<div style="color:var(--neg);font-size:12px;text-align:center;padding:10px 0;">🔴 取得資料失敗，請稍後再試</div>';
+      box.innerHTML = '<div style="color:var(--pos);font-size:12px;text-align:center;padding:10px 0;">🔴 取得資料失敗，請稍後再試</div>';
       if (btn) btn.style.display = 'inline-block';
     }
   }
@@ -947,7 +953,7 @@ YC.stocks = (() => {
     const icf = p.icf || 0;
 
     if (ocf > 0 && icf < 0) {
-      label = '🛡️ 穩健經營型'; color = 'var(--pos)';
+      label = '🛡️ 穩健經營型'; color = 'var(--neg)';
       desc = '營業現金穩定流入，且將資金持續投入資產擴張或償還債務，屬於體質優良的發展模式。';
     } else if (ocf > 0 && icf >= 0) {
       label = '📈 轉型收益型'; color = 'var(--t0)';
@@ -956,7 +962,7 @@ YC.stocks = (() => {
       label = '⚠️ 燒錢擴張型'; color = 'var(--t2)';
       desc = '本業尚未實現正向現金流，且仍持續投入資金擴張，高度依賴外部融資存活。';
     } else if (ocf <= 0 && icf > 0) {
-      label = '🚨 危險警戒型'; color = 'var(--neg)';
+      label = '🚨 危險警戒型'; color = 'var(--pos)';
       desc = '本業虧損流失現金，需依賴變賣資產求生，財務風險極高！';
     } else {
       label = '❓ 型態不明';
@@ -977,18 +983,18 @@ YC.stocks = (() => {
          </div>
          <div style="text-align:right">
              <div style="font-size:11px;color:var(--text-3);letter-spacing:0.5px;margin-bottom:4px">自由現金流 (FCF)</div>
-             <div style="font-size:13px;font-weight:700;color:${p.fcf > 0 ? 'var(--pos)' : (p.fcf < 0 ? 'var(--neg)' : 'var(--text-1)')}">${fmt(p.fcf || 0)}</div>
+             <div style="font-size:13px;font-weight:700;color:${p.fcf > 0 ? 'var(--neg)' : (p.fcf < 0 ? 'var(--pos)' : 'var(--text-1)')}">${fmt(p.fcf || 0)}</div>
          </div>
       </div>
       <div style="font-size:12px;color:var(--text-3);line-height:1.5;margin-bottom:14px;">${desc}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="detail-cell" style="padding:10px;background:var(--bg-card);border:1px solid transparent">
            <div class="detail-cell-lbl" style="font-size:10px">營業現金流入 (OCF)</div>
-           <div class="detail-cell-val" style="font-size:14px;color:${ocf>=0?'var(--pos)':'var(--neg)'};margin-top:2px">${fmt(ocf)}</div>
+           <div class="detail-cell-val" style="font-size:14px;color:${ocf>=0?'var(--neg)':'var(--pos)'};margin-top:2px">${fmt(ocf)}</div>
         </div>
         <div class="detail-cell" style="padding:10px;background:var(--bg-card);border:1px solid transparent">
            <div class="detail-cell-lbl" style="font-size:10px">投資現金流出 (ICF)</div>
-           <div class="detail-cell-val" style="font-size:14px;color:${icf>=0?'var(--pos)':'var(--neg)'};margin-top:2px">${fmt(icf)}</div>
+           <div class="detail-cell-val" style="font-size:14px;color:${icf>=0?'var(--neg)':'var(--pos)'};margin-top:2px">${fmt(icf)}</div>
         </div>
       </div>
     `;

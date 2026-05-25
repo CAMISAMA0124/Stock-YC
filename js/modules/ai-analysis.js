@@ -56,6 +56,44 @@ ${myNote || '(目前尚無筆記)'}
 字數請控制在 300字以內。`;
     }
 
+    /* ── Build best buy recommendation prompt ── */
+    function buildBestBuyPrompt(watchlistItems) {
+        const itemsStr = watchlistItems.map((item, idx) => {
+            const mkt = YC.state.getMarketData(item.symbol) || {};
+            const price = mkt.price || item.price || 0;
+            const priceStr = price ? `${item.symbol.endsWith('.TW') ? 'NT$' : '$'}${price.toFixed(2)}` : '未知';
+            const changeStr = mkt.changePct != null ? `${mkt.changePct >= 0 ? '+' : ''}${mkt.changePct.toFixed(2)}%` : '未知';
+            const tempInfo = item.tempScore != null ? `${item.tempScore}/100 (${item.label})` : '未知';
+            const pe = mkt.pe || mkt.trailingPE || item.pe;
+            const divYield = mkt.dividendYield || mkt.yield || item.divYield;
+            const ibsVal = price && mkt.dayHigh && mkt.dayLow ? YC.indicators.calculateIBS(price, mkt.dayHigh, mkt.dayLow) : null;
+            const ibsStr = ibsVal != null ? ibsVal.toFixed(2) : '未知';
+            
+            return `【候選標的 ${idx + 1}】
+- 名稱與代號：${item.name} (${item.symbol.replace('.TW', '')})
+- 當前價格與今日漲跌：${priceStr} | ${changeStr}
+- 溫度評分：${tempInfo} (0=極度超跌，100=極度超漲)
+- 本益比(P/E) / 殖利率：${pe ? pe.toFixed(1) + 'x' : '未知'} / ${divYield ? (divYield * 100).toFixed(2) + '%' : '未知'}
+- IBS 指標狀態：${ibsStr} (註: <=0.2屬相對低位，>=0.8屬相對高位)`;
+        }).join('\n\n');
+
+        return `你是一位資深的全球股市宏觀分析師與技術分析專家。以下是投資人自選清單中目前溫度偏低（超跌或中性偏低）的股票。
+
+請你從中挑選出【當日最值得優先關注與買入的最佳標的】，並進行客觀、深度的多維度評估。
+
+候選名單如下：
+${itemsStr}
+
+請依據以下結構進行分析（請以繁體中文撰寫）：
+1. 🏆 **當日最佳買股推薦**：明確指出推薦哪一檔，並給出核心的挑選理由。
+2. 📊 **技術面與動能分析**：結合溫度計、IBS 指標及最近漲跌，分析其短線止跌跡象或打底狀態。
+3. 📰 **市場與媒體輿論/基本面分析**：根據該公司的產業地位、基本面評價（如 PE、殖利率）及近期全球市場與媒體的焦點事件（例如最近的新聞焦點、熱門議題與市場對該公司的評價風向），客觀分析其成長性與潛在催化劑。
+4. ⚠️ **風險提示與操作防守**：指出買入該股的潛在風險，以及建議的防守支撐價位或策略。
+
+請格式清晰美觀、條列式說明，總字數控制在 450 字內，用客觀、專業的語氣撰寫。`;
+    }
+
+
     /* ── Call Google Gemini API ── */
     async function callGemini(prompt, apiKey, onChunk) {
         // Updated for 2026: Priority to latest stable and next-gen flash models
@@ -295,6 +333,32 @@ ${myNote || '(目前尚無筆記)'}
         }
     }
 
+    /* ── Analyze and select best buy stock ── */
+    async function analyzeBestBuy(watchlistItems, { onChunk, onDone, onError } = {}) {
+        const settings = YC.state.get().settings || {};
+        const provider = settings.aiProvider || 'gemini';
+
+        let apiKey = settings.apiKey;
+        if (provider === 'openai' && settings.apiKeyOpenAI) apiKey = settings.apiKeyOpenAI;
+        else if (provider === 'gemini' && settings.apiKeyGemini) apiKey = settings.apiKeyGemini;
+        else if (provider === 'claude' && settings.apiKeyClaude) apiKey = settings.apiKeyClaude;
+
+        if (!apiKey) { if (onError) onError('請先在設定中配置 API Key'); return; }
+
+        const prompt = buildBestBuyPrompt(watchlistItems);
+        try {
+            let text;
+            if (provider === 'openai') text = await callOpenAI(prompt, apiKey, onChunk);
+            else if (provider === 'gemini') text = await callGemini(prompt, apiKey, onChunk);
+            else text = await callClaude(prompt, apiKey, onChunk);
+            if (onDone) onDone(text);
+            return text;
+        } catch (e) {
+            const msg = `AI 分析失敗：${e.message}`;
+            if (onError) onError(msg);
+        }
+    }
+
     /* ── Test API connection ── */
     async function testConnection(provider, apiKey) {
         const testPrompt = '請用1句話中文回覆：連線測試成功。';
@@ -309,5 +373,5 @@ ${myNote || '(目前尚無筆記)'}
         }
     }
 
-    return { analyze, analyzePortfolio, testConnection };
+    return { analyze, analyzePortfolio, analyzeBestBuy, testConnection };
 })();
