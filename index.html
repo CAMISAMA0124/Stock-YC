@@ -20,6 +20,19 @@
 </head>
 
 <body>
+  <!-- Silent SW and Cache Clearing to prevent cached code mismatch -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(r => r.unregister());
+      }).catch(err => console.warn('SW unregister failed:', err));
+    }
+    if (window.caches) {
+      caches.keys().then(keys => {
+        keys.forEach(k => caches.delete(k));
+      });
+    }
+  </script>
   <div id="app">
 
     <!-- Loading Screen -->
@@ -147,30 +160,19 @@
   <script src="js/data/indicators.js?v=11"></script>
   <script src="js/data/sentiment.js?v=11"></script>
   <script src="js/data/portfolio.js?v=11"></script>
-  <script src="js/data/metals.js?v=11"></script>
-  <script src="js/modules/temperature.js?v=11"></script>
-  <script src="js/modules/heatmap.js?v=11"></script>
-  <script src="js/modules/allocation.js?v=11"></script>
-  <script src="js/modules/ai-analysis.js?v=11"></script>
-  <script src="js/modules/charting.js?v=11"></script>
-  <script src="js/pages/dashboard.js?v=11"></script>
-  <script src="js/pages/stocks.js?v=11"></script>
-  <script src="js/pages/heatmap-page.js?v=11"></script>
-  <script src="js/pages/ai-page.js?v=11"></script>
-  <script src="js/pages/settings.js?v=11"></script>
-  <script src="js/pages/ledger.js?v=11"></script>
-  <script src="js/app.js?v=11"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=11').then(reg => {
-          console.log('SW registered:', reg);
-        }).catch(err => {
-          console.log('SW registration failed:', err);
-        });
-      });
-    }
-  </script>
+  <script src="js/data/metals.js?v=12"></script>
+  <script src="js/modules/temperature.js?v=12"></script>
+  <script src="js/modules/heatmap.js?v=12"></script>
+  <script src="js/modules/allocation.js?v=12"></script>
+  <script src="js/modules/ai-analysis.js?v=12"></script>
+  <script src="js/modules/charting.js?v=12"></script>
+  <script src="js/pages/dashboard.js?v=12"></script>
+  <script src="js/pages/stocks.js?v=12"></script>
+  <script src="js/pages/heatmap-page.js?v=12"></script>
+  <script src="js/pages/ai-page.js?v=12"></script>
+  <script src="js/pages/settings.js?v=12"></script>
+  <script src="js/pages/ledger.js?v=12"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 
 </html>

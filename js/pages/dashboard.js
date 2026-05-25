@@ -424,13 +424,11 @@ YC.dashboardPage = (() => {
     `;
   }
 
-  /* ── Rebalance Recommendation Card Phase 2 ───────── */
   function renderRebalanceCard(holdings, totalAssets) {
     const card = document.getElementById('dash-rebalance-card');
     if (!card || !holdings.length) { if (card) card.style.display = 'none'; return; }
 
     const rebalData = YC.allocation.calculateRebalanceSteps(totalAssets, holdings);
-    // Only show if there are steps and user has configured some target weights
     if (rebalData.totalTargetPct === 0) {
       card.style.display = 'none';
       return;
@@ -438,17 +436,33 @@ YC.dashboardPage = (() => {
 
     card.style.display = 'block';
     
+    let hasBigDeviation = false;
     let stepsHtml = '';
+    
     if (rebalData.steps.length === 0) {
         stepsHtml = `<div class="empty-state" style="padding:10px; min-height:60px; background:transparent"><div class="empty-state-text" style="color:var(--t0)">✅ 目前各項資產皆接近目標權重，無需大幅調整</div></div>`;
     } else {
         stepsHtml = rebalData.steps.map(s => {
             const color = s.action === '買入' ? 'var(--t0)' : 'var(--t3)';
+            const dev = s.deviationPct || 0;
+            const devAbs = Math.abs(dev);
+            if (devAbs >= 5) hasBigDeviation = true;
+            
+            const devColor = devAbs >= 5 ? 'var(--neg)' : (devAbs >= 3 ? 'var(--accent)' : 'var(--text-3)');
+            const devSign = dev > 0 ? '+' : '';
+            const devText = `(偏離 ${devSign}${dev.toFixed(1)}%)`;
+            const currentPctVal = s.currentPct || 0;
+
             return `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05)">
               <div>
                 <div style="font-weight:700">${s.name} <span style="font-size:11px;color:var(--text-3);font-weight:normal">${s.symbol}</span></div>
-                <div style="font-size:11px;color:var(--text-2);margin-top:2px">目標 ${s.targetPct}% ｜ 現有 NT$ ${s.currentVal.toLocaleString('zh-TW', {maximumFractionDigits:0})}</div>
+                <div style="font-size:11px;color:var(--text-2);margin-top:4px;display:flex;align-items:center;gap:6px">
+                  <span>目標 ${s.targetPct}%</span>
+                  <span style="color:var(--border)">|</span>
+                  <span>現有 ${currentPctVal.toFixed(1)}%</span>
+                  <span style="color:${devColor};font-weight:${devAbs >= 5 ? '800' : 'normal'};background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:4px">${devText}</span>
+                </div>
               </div>
               <div style="text-align:right">
                 <div style="font-weight:800; color:${color}">${s.action} NT$ ${s.diffAmount.toLocaleString('zh-TW', {maximumFractionDigits:0})}</div>
@@ -458,16 +472,42 @@ YC.dashboardPage = (() => {
         }).join('');
     }
 
+    let warningHtml = '';
+    if (hasBigDeviation) {
+      warningHtml = `
+      <div style="background:rgba(255,80,80,0.1); border-left:4px solid var(--neg); padding:10px 12px; border-radius:4px; margin-top:10px; margin-bottom:12px; display:flex; align-items:center; gap:10px; animation: pulse-border 2s infinite">
+        <div style="font-size:20px; animation: shake 3s infinite">🚨</div>
+        <div>
+          <div style="color:var(--neg); font-weight:800; font-size:13px">強烈建議執行再平衡</div>
+          <div style="color:var(--text-1); font-size:11px; margin-top:3px; line-height:1.4">部分資產偏離目標比例已達 <strong style="color:var(--neg)">5%</strong> 以上，風險可能超出您的原始設定。</div>
+        </div>
+      </div>
+      <style>
+        @keyframes pulse-border {
+          0% { box-shadow: 0 0 0 0 rgba(255,80,80,0.4); }
+          70% { box-shadow: 0 0 0 4px rgba(255,80,80,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,80,80,0); }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+          20%, 40%, 60%, 80% { transform: translateX(2px); }
+        }
+      </style>
+      `;
+    }
+
     card.innerHTML = `
-      <div class="card" style="border-color: rgba(124,111,255,0.3)">
+      <div class="card" style="border-color: ${hasBigDeviation ? 'rgba(255,80,80,0.4)' : 'rgba(124,111,255,0.3)'}">
         <div class="card-title row-between">
           <span>⚖️ 資產再平衡建議</span>
-          <span style="font-size:11px;font-weight:normal;color:var(--text-2)">目標股票總佔比: ${rebalData.totalTargetPct}%</span>
+          <span style="font-size:11px;font-weight:normal;color:var(--text-2)">目標股票佔比: ${rebalData.totalTargetPct}%</span>
         </div>
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:10px;line-height:1.4">
+        <div style="font-size:12px;color:var(--text-3);line-height:1.4">
           根據您設定的各資產「目標比重」，系統計算出的具體買賣金額以維持最佳配置：
         </div>
-        <div style="background:var(--bg-input); border-radius:8px; padding:0 12px">
+        ${warningHtml}
+        <div style="background:var(--bg-input); border-radius:8px; padding:0 12px; margin-top:10px">
           ${stepsHtml}
         </div>
         <div style="text-align:right; margin-top:10px; font-size:11px; color:var(--text-3)">

@@ -143,8 +143,11 @@ YC.allocation = (() => {
             const targetVal = totalAssets * (pct / 100);
             const diff = targetVal - currentVal;
             
-            // Only suggest action if diff is somewhat meaningful (e.g. > 1000 NTD)
-            if (Math.abs(diff) > 1000) {
+            const currentPct = totalAssets > 0 ? (currentVal / totalAssets) * 100 : 0;
+            const deviationPct = currentPct - pct;
+            
+            // Only suggest action if diff is somewhat meaningful (e.g. > 1000 NTD) or deviation is >= 1%
+            if (Math.abs(diff) > 1000 || Math.abs(deviationPct) >= 1) {
                 const action = diff > 0 ? '買入' : '賣出';
                 steps.push({
                     symbol: h.symbol,
@@ -152,6 +155,8 @@ YC.allocation = (() => {
                     action,
                     diffAmount: Math.abs(diff),
                     targetPct: pct,
+                    currentPct,
+                    deviationPct,
                     currentVal,
                     targetVal
                 });
