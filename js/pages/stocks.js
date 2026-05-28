@@ -8,6 +8,7 @@
 YC.stocks = (() => {
   let currentTab = 'tw';
   let currentFilter = 'all';
+  let isEditingStocksHoldings = false;
 
   const TABS = [
     { id: 'holdings', label: '💼 我的持倉' },
@@ -35,12 +36,16 @@ YC.stocks = (() => {
       <div class="tabs" id="stock-tabs">
         ${TABS.map(t => `<button class="tab-btn ${t.id === currentTab ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`).join('')}
       </div>
+      <!-- Edit holdings bar -->
+      <div id="holdings-edit-bar" style="display: ${currentTab === 'holdings' ? 'flex' : 'none'}; justify-content: flex-end; padding: 4px 0 8px;">
+        <button class="btn btn-sm btn-ghost" id="btn-stocks-edit-holdings">編輯</button>
+      </div>
       <!-- Filter chips -->
-      <div class="filter-row" id="stock-filters">
+      <div class="filter-row" id="stock-filters" style="display: ${currentTab === 'holdings' ? 'none' : 'flex'}">
         ${FILTERS.map(f => `<button class="chip ${f.cls} ${f.id === currentFilter ? 'on' : ''}" data-filter="${f.id}">${f.label}</button>`).join('')}
       </div>
       <!-- Industry sub-filter -->
-      <div id="industry-bar" style="display:flex;gap:6px;overflow-x:auto;padding:6px 0 10px;scrollbar-width:none"></div>
+      <div id="industry-bar" style="display: ${currentTab === 'holdings' ? 'none' : 'flex'}; gap:6px;overflow-x:auto;padding:6px 0 10px;scrollbar-width:none"></div>
       <!-- List -->
       <div class="stock-list" id="stock-list">
         ${buildSkeletonCards(6)}
@@ -59,6 +64,18 @@ YC.stocks = (() => {
       if (!btn) return;
       currentTab = btn.dataset.tab;
       el.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
+      
+      const editBar = el.querySelector('#holdings-edit-bar');
+      const filters = el.querySelector('#stock-filters');
+      const indBar = el.querySelector('#industry-bar');
+      if (editBar) editBar.style.display = currentTab === 'holdings' ? 'flex' : 'none';
+      if (filters) filters.style.display = currentTab === 'holdings' ? 'none' : 'flex';
+      if (indBar) indBar.style.display = currentTab === 'holdings' ? 'none' : 'flex';
+      
+      if (currentTab !== 'holdings') {
+        isEditingStocksHoldings = false;
+      }
+      
       buildIndustryBar();
       renderList();
     });
@@ -118,13 +135,159 @@ YC.stocks = (() => {
       list = list.filter(s => s.tempScore !== null && YC.indicators.classify(s.tempScore).zone === parseInt(currentFilter));
     }
 
-    list.sort((a, b) => (b.tempScore ?? 50) - (a.tempScore ?? 50));
+    // Only sort by temperature if we are NOT in the holdings tab!
+    if (currentTab !== 'holdings') {
+      list.sort((a, b) => (b.tempScore ?? 50) - (a.tempScore ?? 50));
+    }
 
     if (!list.length) {
       listEl.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">此分類無清單</div></div>`;
       return;
     }
-    listEl.innerHTML = list.map(s => YC.temperature.renderCard(s)).join('');
+
+    if (currentTab === 'holdings') {
+      listEl.innerHTML = list.map(s => renderHoldingCard(s, isEditingStocksHoldings)).join('');
+      bindHoldingsEditEvents();
+    } else {
+      listEl.innerHTML = list.map(s => YC.temperature.renderCard(s)).join('');
+    }
+  }
+
+  function renderHoldingCard(h, isEditing = false) {
+    const isTW = h.symbol?.endsWith('.TW');
+    const curSym = isTW ? 'NT$' : '$';
+    const priceStr = h.price ? `${curSym}${h.price.toFixed(isTW ? 1 : 2)}` : '--';
+    const changeSign = h.changePct >= 0 ? '+' : '';
+    const changeStr = h.changePct != null ? `${changeSign}${h.changePct.toFixed(2)}%` : '--';
+    const changeCls = h.changePct >= 0 ? 'pos' : 'neg';
+    const tempStr = h.tempScore != null ? h.tempScore : '--';
+    const initials = YC.indicators.getInitials(h.name);
+    const cls = YC.indicators.classify(h.tempScore || 50);
+
+    return `
+    <div class="stock-card ${cls.cardClass || 'tc1'}" ${isEditing ? 'draggable="true" style="cursor: move;"' : `onclick="YC.stocks.openDetail('${h.symbol}')"`} data-symbol="${h.symbol}">
+      ${isEditing ? `<div class="drag-handle" style="color: var(--text-3); font-size: 16px; padding-right: 8px; cursor: move; display: flex; align-items: center; user-select: none;">☰</div>` : ''}
+      <div class="stock-avatar av2" style="width:42px;height:42px;font-size:12px">${initials}</div>
+      <div class="stock-info" style="flex:1;min-width:0">
+        <div class="stock-name">${h.name}</div>
+        <div class="stock-sub">${(h.symbol || '').replace('.TW', '')} · ${h.shares}股</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">價格: ${priceStr} <span class="${changeCls}" style="margin-left:4px;font-weight:600">${changeStr}</span></div>
+      </div>
+      ${isEditing ? `
+        <button class="delete-holding-btn" data-symbol="${h.symbol}" style="background: rgba(255, 53, 96, 0.15); color: var(--pos); border: 1px solid rgba(255, 53, 96, 0.3); border-radius: 4px; padding: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-weight: bold; margin-left: 8px; align-self: center; z-index: 10;">✕</button>
+      ` : `
+        <div class="temp-badge ${cls.cls}" style="font-size:11px;padding:4px 8px;align-self:flex-start">${tempStr}</div>
+      `}
+    </div>`;
+  }
+
+  function bindHoldingsEditEvents() {
+    const listEl = document.getElementById('stock-list');
+    if (!listEl) return;
+    
+    const newListEl = listEl.cloneNode(true);
+    listEl.parentNode.replaceChild(newListEl, listEl);
+
+    const btnEdit = document.getElementById('btn-stocks-edit-holdings');
+    if (btnEdit) {
+      btnEdit.textContent = isEditingStocksHoldings ? '完成' : '編輯';
+      btnEdit.style.color = isEditingStocksHoldings ? 'var(--t0)' : '';
+      btnEdit.onclick = () => {
+        isEditingStocksHoldings = !isEditingStocksHoldings;
+        renderList();
+      };
+    }
+
+    if (isEditingStocksHoldings) {
+      let draggedItem = null;
+
+      newListEl.addEventListener('dragstart', (e) => {
+        draggedItem = e.target.closest('.stock-card');
+        if (draggedItem) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', draggedItem.dataset.symbol);
+          draggedItem.style.opacity = '0.5';
+        }
+      });
+
+      newListEl.addEventListener('dragend', (e) => {
+        const card = e.target.closest('.stock-card');
+        if (card) {
+          card.style.opacity = '1';
+        }
+        newListEl.querySelectorAll('.stock-card').forEach(item => {
+          item.style.borderTop = '';
+          item.style.borderBottom = '';
+        });
+      });
+
+      newListEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const targetCard = e.target.closest('.stock-card');
+        if (targetCard && targetCard !== draggedItem) {
+          const rect = targetCard.getBoundingClientRect();
+          const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+          newListEl.querySelectorAll('.stock-card').forEach(item => {
+            item.style.borderTop = '';
+            item.style.borderBottom = '';
+          });
+          if (next) {
+            targetCard.style.borderBottom = '2px dashed var(--accent)';
+          } else {
+            targetCard.style.borderTop = '2px dashed var(--accent)';
+          }
+        }
+      });
+
+      newListEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const targetCard = e.target.closest('.stock-card');
+        const draggedSymbol = e.dataTransfer.getData('text/plain');
+        
+        if (targetCard && draggedSymbol) {
+          const targetSymbol = targetCard.dataset.symbol;
+          if (draggedSymbol !== targetSymbol) {
+            const currentHoldings = [...YC.state.get().holdings];
+            const draggedIndex = currentHoldings.findIndex(h => h.symbol === draggedSymbol);
+            const targetIndex = currentHoldings.findIndex(h => h.symbol === targetSymbol);
+            
+            if (draggedIndex >= 0 && targetIndex >= 0) {
+              const rect = targetCard.getBoundingClientRect();
+              const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+              
+              const [removed] = currentHoldings.splice(draggedIndex, 1);
+              
+              let insertIndex = currentHoldings.findIndex(h => h.symbol === targetSymbol);
+              if (next) {
+                insertIndex += 1;
+              }
+              
+              currentHoldings.splice(insertIndex, 0, removed);
+              YC.state.setHoldings(currentHoldings);
+              renderList();
+            }
+          }
+        }
+      });
+
+      newListEl.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.delete-holding-btn');
+        if (deleteBtn) {
+          e.stopPropagation();
+          const symbol = deleteBtn.dataset.symbol;
+          const name = YC.state.get().holdings.find(h => h.symbol === symbol)?.name || symbol;
+          if (confirm(`確定要移除 ${name} 的所有持倉資料嗎？`)) {
+            const currentHoldings = YC.state.get().holdings.filter(h => h.symbol !== symbol);
+            YC.state.setHoldings(currentHoldings);
+            if (currentHoldings.length === 0) {
+              isEditingStocksHoldings = false;
+            }
+            renderList();
+          }
+        }
+      });
+    }
   }
 
   function buildSkeletonCards(n) {

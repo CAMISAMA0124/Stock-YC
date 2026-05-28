@@ -86,7 +86,10 @@ YC.dashboardPage = (() => {
       <div class="card" id="dash-holdings-card">
         <div class="card-title row-between">
           <span>💼 我的持倉</span>
-          <button class="btn btn-sm btn-ghost" onclick="YC.app.navigate('stocks')">管理</button>
+          <div style="display:flex; gap:6px">
+            <button class="btn btn-sm btn-ghost" id="btn-edit-holdings">編輯</button>
+            <button class="btn btn-sm btn-ghost" onclick="YC.app.navigate('stocks')">管理</button>
+          </div>
         </div>
         <div id="dash-holdings-list">
           <div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-text">尚未新增持股<br><small class="text-muted">到「股票」頁面點擊任一股票即可加入</small></div></div>
@@ -213,17 +216,28 @@ YC.dashboardPage = (() => {
     }
 
     // ── Holdings list ─────────────────────────────────
+    const btnEdit = document.getElementById('btn-edit-holdings');
+    if (btnEdit) {
+      btnEdit.textContent = isEditingHoldings ? '完成' : '編輯';
+      btnEdit.style.color = isEditingHoldings ? 'var(--t0)' : '';
+      btnEdit.onclick = () => {
+        isEditingHoldings = !isEditingHoldings;
+        if (isEditingHoldings) isExpanded = true;
+        refreshData(el);
+      };
+    }
+
     const holdList = document.getElementById('dash-holdings-list');
     if (holdList) {
       if (!holdings.length) {
         holdList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-text">尚未新增持股</div></div>`;
       } else {
         const remained = holdings.length - 5;
-        const displayHoldings = isExpanded ? holdings : holdings.slice(0, 5);
+        const displayHoldings = (isExpanded || isEditingHoldings) ? holdings : holdings.slice(0, 5);
         
         holdList.innerHTML = `
-          <div class="stock-list">${displayHoldings.map(h => renderHoldingCard(h)).join('')}</div>
-          ${remained > 0 ? `
+          <div class="stock-list">${displayHoldings.map(h => renderHoldingCard(h, isEditingHoldings)).join('')}</div>
+          ${(remained > 0 && !isEditingHoldings) ? `
             <div id="dash-expand-btn" style="text-align:center; padding:12px; color:var(--accent); font-size:12px; cursor:pointer; font-weight:700; transition: opacity 0.2s">
               ${isExpanded ? '🔼 收合持股清單' : `📂 展開查看剩餘 ${remained} 檔持股...`}
             </div>
@@ -231,11 +245,104 @@ YC.dashboardPage = (() => {
         `;
 
         const btn = document.getElementById('dash-expand-btn');
-        if (btn) {
+        if (btn && !isEditingHoldings) {
           btn.onclick = () => {
             isExpanded = !isExpanded;
             refreshData(el);
           };
+        }
+
+        // Drag and drop & Delete handlers for editing mode
+        if (isEditingHoldings) {
+          const listContainer = holdList.querySelector('.stock-list');
+          let draggedItem = null;
+
+          listContainer.addEventListener('dragstart', (e) => {
+            draggedItem = e.target.closest('.stock-card');
+            if (draggedItem) {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', draggedItem.dataset.symbol);
+              draggedItem.style.opacity = '0.5';
+            }
+          });
+
+          listContainer.addEventListener('dragend', (e) => {
+            const card = e.target.closest('.stock-card');
+            if (card) {
+              card.style.opacity = '1';
+            }
+            listContainer.querySelectorAll('.stock-card').forEach(item => {
+              item.style.borderTop = '';
+              item.style.borderBottom = '';
+            });
+          });
+
+          listContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const targetCard = e.target.closest('.stock-card');
+            if (targetCard && targetCard !== draggedItem) {
+              const rect = targetCard.getBoundingClientRect();
+              const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+              listContainer.querySelectorAll('.stock-card').forEach(item => {
+                item.style.borderTop = '';
+                item.style.borderBottom = '';
+              });
+              if (next) {
+                targetCard.style.borderBottom = '2px dashed var(--accent)';
+              } else {
+                targetCard.style.borderTop = '2px dashed var(--accent)';
+              }
+            }
+          });
+
+          listContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const targetCard = e.target.closest('.stock-card');
+            const draggedSymbol = e.dataTransfer.getData('text/plain');
+            
+            if (targetCard && draggedSymbol) {
+              const targetSymbol = targetCard.dataset.symbol;
+              if (draggedSymbol !== targetSymbol) {
+                const currentHoldings = [...YC.state.get().holdings];
+                const draggedIndex = currentHoldings.findIndex(h => h.symbol === draggedSymbol);
+                const targetIndex = currentHoldings.findIndex(h => h.symbol === targetSymbol);
+                
+                if (draggedIndex >= 0 && targetIndex >= 0) {
+                  const rect = targetCard.getBoundingClientRect();
+                  const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                  
+                  const [removed] = currentHoldings.splice(draggedIndex, 1);
+                  
+                  let insertIndex = currentHoldings.findIndex(h => h.symbol === targetSymbol);
+                  if (next) {
+                    insertIndex += 1;
+                  }
+                  
+                  currentHoldings.splice(insertIndex, 0, removed);
+                  YC.state.setHoldings(currentHoldings);
+                  refreshData(el);
+                }
+              }
+            }
+          });
+
+          listContainer.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-holding-btn');
+            if (deleteBtn) {
+              e.stopPropagation();
+              const symbol = deleteBtn.dataset.symbol;
+              const name = YC.state.get().holdings.find(h => h.symbol === symbol)?.name || symbol;
+              if (confirm(`確定要移除 ${name} 的所有持倉資料嗎？`)) {
+                const currentHoldings = YC.state.get().holdings.filter(h => h.symbol !== symbol);
+                YC.state.setHoldings(currentHoldings);
+                if (currentHoldings.length === 0) {
+                  isEditingHoldings = false;
+                }
+                refreshData(el);
+              }
+            }
+          });
         }
       }
     }
@@ -243,8 +350,9 @@ YC.dashboardPage = (() => {
     renderGoal(combinedSettings);
   }
 
-  // State: closure variable for holdings expand/collapse toggle
+  // State: closure variables for holdings list
   let isExpanded = false;
+  let isEditingHoldings = false;
 
   /* ── Opportunity Radar ──────────────────────────── */
   async function renderRadar() {
@@ -669,19 +777,22 @@ YC.dashboardPage = (() => {
   }
 
   /* ── Individual Holding Card ──────────────────── */
-  function renderHoldingCard(h) {
+  function renderHoldingCard(h, isEditing = false) {
     const mkt = YC.state.getMarketData(h.symbol);
     const isTW = h.symbol?.endsWith('.TW');
     const curSym = isTW ? 'NT$' : '$';
 
     if (!mkt || !mkt.price) {
-      return `<div class="stock-card tc1" onclick="YC.stocks.openDetail('${h.symbol}')">
+      return `<div class="stock-card tc1" ${isEditing ? 'draggable="true" style="cursor: move;"' : `onclick="YC.stocks.openDetail('${h.symbol}')"`} data-symbol="${h.symbol}">
+        ${isEditing ? `<div class="drag-handle" style="color: var(--text-3); font-size: 16px; padding-right: 8px; cursor: move; display: flex; align-items: center; user-select: none;">☰</div>` : ''}
         <div class="stock-avatar av2" style="width:42px;height:42px;font-size:13px">${YC.indicators.getInitials(h.name)}</div>
-        <div class="stock-info">
+        <div class="stock-info" style="flex:1;min-width:0">
           <div class="stock-name">${h.name}</div>
           <div class="stock-sub">${(h.symbol || '').replace('.TW', '')} · ${h.shares || 0}股</div>
         </div>
-        <div style="font-size:11px;color:var(--text-3)">載入中...</div>
+        ${isEditing ? `
+          <button class="delete-holding-btn" data-symbol="${h.symbol}" style="background: rgba(255, 53, 96, 0.15); color: var(--pos); border: 1px solid rgba(255, 53, 96, 0.3); border-radius: 4px; padding: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-weight: bold; margin-left: 8px; align-self: center; z-index: 10;">✕</button>
+        ` : `<div style="font-size:11px;color:var(--text-3)">載入中...</div>`}
       </div>`;
     }
 
@@ -716,7 +827,8 @@ YC.dashboardPage = (() => {
       : '';
 
     return `
-    <div class="stock-card ${cls.cardClass || 'tc1'}" onclick="YC.stocks.openDetail('${h.symbol}')">
+    <div class="stock-card ${cls.cardClass || 'tc1'}" ${isEditing ? 'draggable="true" style="cursor: move;"' : `onclick="YC.stocks.openDetail('${h.symbol}')"`} data-symbol="${h.symbol}">
+      ${isEditing ? `<div class="drag-handle" style="color: var(--text-3); font-size: 16px; padding-right: 8px; cursor: move; display: flex; align-items: center; user-select: none;">☰</div>` : ''}
       <div class="stock-avatar av2" style="width:42px;height:42px;font-size:12px">${YC.indicators.getInitials(h.name)}</div>
       <div class="stock-info" style="flex:1;min-width:0">
         <div class="stock-name">${h.name}</div>
@@ -733,7 +845,9 @@ YC.dashboardPage = (() => {
           <span style="margin-left:5px">(${buildPnlPctStr(totalPnlPct)})</span>
         </div>
       </div>
-      <div class="temp-badge ${cls.cls}" style="font-size:11px;padding:4px 8px;align-self:flex-start">${temp}</div>
+      ${isEditing ? `
+        <button class="delete-holding-btn" data-symbol="${h.symbol}" style="background: rgba(255, 53, 96, 0.15); color: var(--pos); border: 1px solid rgba(255, 53, 96, 0.3); border-radius: 4px; padding: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-weight: bold; margin-left: 8px; align-self: center; z-index: 10;">✕</button>
+      ` : `<div class="temp-badge ${cls.cls}" style="font-size:11px;padding:4px 8px;align-self:flex-start">${temp}</div>`}
     </div>`;
   }
 
