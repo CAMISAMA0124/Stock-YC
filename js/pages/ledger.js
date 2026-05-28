@@ -326,7 +326,7 @@ YC.ledgerPage = (() => {
         }
 
         return `
-        <div class="lc-item-card" onclick="YC.ledgerPage.openEdit('${key}', ${item.id})">
+        <div class="lc-item-card" onclick="YC.ledgerPage.openEdit('${key}', '${item.id}')">
             <div class="lc-item-dot" style="background:${cat.color}"></div>
             <div class="lc-item-body">
                 <div class="lc-item-name">${item.name || item.symbol || '—'}</div>
@@ -365,12 +365,12 @@ YC.ledgerPage = (() => {
                 const isInc = e.type === 'income';
                 const sign  = isInc ? '+' : '-';
                 const color = isInc ? 'var(--neg)' : 'var(--pos)';
-                return `<div class="lc-ledger-row" onclick="YC.ledgerPage.openLedgerEdit(${e.id})">
+                return `<div class="lc-ledger-row" onclick="YC.ledgerPage.openLedgerEdit('${e.id}')">
                     <div class="lc-ledger-cat">${e.category}</div>
                     <div class="lc-ledger-note">${e.note || ''}</div>
                     <div class="lc-ledger-date">${e.date.slice(5)}</div>
                     <div class="lc-ledger-amt" style="color:${color}">${sign}$${fmt(e.amount)}</div>
-                    <button class="lc-btn-del" onclick="event.stopPropagation(); YC.ledgerPage.deleteLedger(${e.id})">✕</button>
+                    <button class="lc-btn-del" onclick="event.stopPropagation(); YC.ledgerPage.deleteLedger('${e.id}')">✕</button>
                 </div>`;
             }).join('');
 
