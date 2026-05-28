@@ -426,7 +426,7 @@ YC.ledgerPage = (() => {
 
     function openEdit(key, id) {
         const items = getAssets()[key] || [];
-        const item  = items.find(i => i.id === id);
+        const item  = items.find(i => String(i.id) === String(id));
         if (!item) return;
         editId = id;
         openModal(buildAssetForm(key, item));
@@ -440,7 +440,7 @@ YC.ledgerPage = (() => {
     }
 
     function openLedgerEdit(id) {
-        const e = getLedger().find(e => e.id === id);
+        const e = getLedger().find(e => String(e.id) === String(id));
         if (!e) return;
         editId = id;
         openModal(buildLedgerForm(e.type, e));
@@ -789,7 +789,7 @@ YC.ledgerPage = (() => {
     // ─── Save Item ────────────────────────────────────────────
     function saveItem(key) {
         const assets = getAssets();
-        let item = editId ? assets[key].find(i => i.id === editId) || { id: editId } : { id: genId() };
+        let item = editId ? assets[key].find(i => String(i.id) === String(editId)) || { id: editId } : { id: genId() };
 
         if (key === 'bank') {
             item.name = document.getElementById('lf-name')?.value || '';
@@ -851,7 +851,7 @@ YC.ledgerPage = (() => {
     function deleteItem(key, id) {
         if (!confirm('確定刪除？')) return;
         const assets = getAssets();
-        assets[key] = assets[key].filter(i => i.id !== id);
+        assets[key] = assets[key].filter(i => String(i.id) !== String(id));
         saveAssets(assets);
         render();
     }
@@ -884,7 +884,7 @@ YC.ledgerPage = (() => {
 
     function deleteLedger(id) {
         if (!confirm('確定刪除此筆記帳？')) return;
-        saveLedger(getLedger().filter(e => e.id !== id));
+        saveLedger(getLedger().filter(e => String(e.id) !== String(id)));
         renderTab('ledger');
     }
 
