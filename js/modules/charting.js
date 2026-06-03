@@ -193,6 +193,12 @@ YC.charting = (() => {
         let isDragging    = false;
         let animationFrameId = null;
 
+        // For momentum/inertia
+        let lastX = null;
+        let lastTime = null;
+        let velocity = 0; // px per ms
+        let momentumFrameId = null;
+
         const pxPerCandle = () => {
             const w = container.clientWidth || 340;
             const chartW = w - 45 - 10;
@@ -202,9 +208,18 @@ YC.charting = (() => {
         function onPointerDown(e) {
             if (e.type === 'mousedown' && e.button !== 0) return;
             
+            // Cancel any active momentum scrolling
+            if (momentumFrameId) {
+                cancelAnimationFrame(momentumFrameId);
+                momentumFrameId = null;
+            }
+
             isDragging    = true;
             dragStartX    = e.clientX ?? (e.touches && e.touches[0].clientX);
             dragStartOff  = state.offset;
+            lastX         = dragStartX;
+            lastTime      = performance.now();
+            velocity      = 0;
             container.style.cursor = 'grabbing';
 
             if (e.type === 'mousedown') {
@@ -220,6 +235,7 @@ YC.charting = (() => {
             if (!isDragging) return;
             const curX = e.clientX;
             if (curX == null) return;
+            trackVelocity(curX);
             updateDrag(curX);
         }
 
@@ -228,24 +244,87 @@ YC.charting = (() => {
             const curX = e.touches && e.touches[0].clientX;
             if (curX == null) return;
             e.preventDefault(); // Prevent scrolling page when dragging chart
+            trackVelocity(curX);
             updateDrag(curX);
+        }
+
+        function trackVelocity(curX) {
+            const now = performance.now();
+            const dt = now - lastTime;
+            if (dt > 0) {
+                const instantV = (curX - lastX) / dt;
+                // Exponential moving average to smooth velocity
+                velocity = velocity * 0.4 + instantV * 0.6;
+            }
+            lastX = curX;
+            lastTime = now;
         }
 
         function updateDrag(curX) {
             const maxOffset = Math.max(0, state.history.length - VIEW_SIZE);
             const dx       = curX - dragStartX; // Correct direction: curX - dragStartX
-            const candleDx = Math.round(dx / pxPerCandle());
+            // Added sensitivity multiplier of 1.3 to make standard dragging feel more responsive
+            const candleDx = Math.round((dx * 1.3) / pxPerCandle());
             const targetOffset = Math.max(0, Math.min(maxOffset, dragStartOff + candleDx));
             
             if (state.offset !== targetOffset) {
                 state.offset = targetOffset;
                 if (!animationFrameId) {
                     animationFrameId = requestAnimationFrame(() => {
-                        _renderChart(container, containerId, state.history, state.options, state, VIEW_SIZE);
+                        if (document.body.contains(container)) {
+                            _renderChart(container, containerId, state.history, state.options, state, VIEW_SIZE);
+                        }
                         animationFrameId = null;
                     });
                 }
             }
+        }
+
+        function startMomentum() {
+            let lastFrameTime = performance.now();
+            let currentOffset = state.offset;
+            const maxOffset = Math.max(0, state.history.length - VIEW_SIZE);
+            const friction = 0.95; // Deceleration rate per frame
+            
+            function step(timestamp) {
+                if (!document.body.contains(container)) {
+                    momentumFrameId = null;
+                    return;
+                }
+
+                const dt = timestamp - lastFrameTime;
+                lastFrameTime = timestamp;
+                
+                // Scale friction by dt to keep rate consistent across different refresh rates (e.g. 60Hz/120Hz)
+                const frictionFactor = Math.pow(friction, dt / 16.67);
+                velocity *= frictionFactor;
+                
+                if (Math.abs(velocity) < 0.05) {
+                    momentumFrameId = null;
+                    return;
+                }
+                
+                const dx = velocity * dt;
+                // Apply sensitivity multiplier to momentum too
+                const candleDx = (dx * 1.3) / pxPerCandle();
+                
+                currentOffset += candleDx;
+                const targetOffset = Math.max(0, Math.min(maxOffset, Math.round(currentOffset)));
+                
+                if (state.offset !== targetOffset) {
+                    state.offset = targetOffset;
+                    _renderChart(container, containerId, state.history, state.options, state, VIEW_SIZE);
+                }
+                
+                if (targetOffset === 0 || targetOffset === maxOffset) {
+                    momentumFrameId = null;
+                    return;
+                }
+                
+                momentumFrameId = requestAnimationFrame(step);
+            }
+            
+            momentumFrameId = requestAnimationFrame(step);
         }
 
         function onPointerUp() {
@@ -260,6 +339,12 @@ YC.charting = (() => {
             window.removeEventListener('mouseup',   onPointerUp);
             window.removeEventListener('touchmove',  onTouchMove);
             window.removeEventListener('touchend',   onPointerUp);
+
+            // Apply momentum on release if velocity is high enough
+            const minVelocity = 0.15; // px/ms
+            if (Math.abs(velocity) > minVelocity) {
+                startMomentum();
+            }
         }
 
         // Mouse events on container
