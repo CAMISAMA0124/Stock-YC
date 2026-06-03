@@ -410,11 +410,14 @@ YC.ledgerPage = (() => {
         document.getElementById('lc-modal-inner').innerHTML = html;
         document.getElementById('lc-modal-bg').classList.add('show');
         document.getElementById('lc-modal').classList.add('show');
+        // Lock background scroll (prevents page behind modal from scrolling)
+        document.body.classList.add('modal-open');
     }
 
     function closeModal() {
         document.getElementById('lc-modal-bg').classList.remove('show');
         document.getElementById('lc-modal').classList.remove('show');
+        document.body.classList.remove('modal-open');
         editId = null;
     }
 
@@ -562,6 +565,8 @@ YC.ledgerPage = (() => {
         </div>
         <div class="lf-body">
             ${fields}
+        </div>
+        <div class="lf-footer">
             <button class="lc-save-btn" onclick="YC.ledgerPage.saveItem('${key}')">
                 ${item ? '更新' : '儲存'}
             </button>
@@ -589,6 +594,8 @@ YC.ledgerPage = (() => {
             <input type="number" id="lf-lg-amt" inputmode="decimal" placeholder="0" value="${item?.amount||''}">
             <label>備註</label>
             <input id="lf-lg-note" placeholder="可不填" value="${item?.note||''}">
+        </div>
+        <div class="lf-footer">
             <button class="lc-save-btn" style="background:${isInc?'rgba(0,212,170,0.2)':'rgba(255,53,96,0.2)'};color:${isInc?'var(--neg)':'var(--pos)'}" onclick="YC.ledgerPage.saveLedgerEntry()">儲存</button>
         </div>`;
     }

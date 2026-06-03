@@ -2251,11 +2251,10 @@ input.error {
   z-index: 801;
   transform: translateY(110%);
   transition: transform 0.32s cubic-bezier(.25,.8,.25,1);
-  max-height: 90vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Use flex layout so content is scrollable but save button stays visible */
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
   box-shadow: 0 -8px 40px rgba(0,0,0,0.6);
 }
 
@@ -2300,10 +2299,17 @@ input.error {
 }
 
 .lf-body {
-  padding: 16px 18px 32px;
+  padding: 0 18px;
+  padding-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Takes remaining space above the sticky footer */
+  flex: 1;
+  min-height: 0;
 }
 
 .lf-body label {
@@ -2358,8 +2364,17 @@ input.error {
   color: #fff;
 }
 
+/* Sticky footer that holds the save button — always visible above iOS home bar */
+.lf-footer {
+  flex-shrink: 0;
+  padding: 12px 18px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+}
+
 .lc-save-btn {
-  margin-top: 18px;
+  margin-top: 0;
   width: 100%;
   padding: 14px;
   border-radius: var(--r-md);
@@ -2386,9 +2401,15 @@ input.error {
 
 @media (max-width: 768px) {
   .lc-modal:focus-within {
-    max-height: 50vh;
+    max-height: 85vh;
   }
   .modal-sheet:focus-within {
     max-height: 50vh;
   }
+}
+
+/* Prevent background page from scrolling when modal is open */
+body.modal-open .page-container {
+  overflow: hidden;
+  touch-action: none;
 }
