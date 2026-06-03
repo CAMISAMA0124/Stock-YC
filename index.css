@@ -2247,8 +2247,11 @@ input.error {
   z-index: 801;
   transform: translateY(110%);
   transition: transform 0.32s cubic-bezier(.25,.8,.25,1);
-  max-height: 88vh;
+  max-height: 90vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow: 0 -8px 40px rgba(0,0,0,0.6);
 }
 
@@ -2293,7 +2296,7 @@ input.error {
 }
 
 .lf-body {
-  padding: 16px 18px 20px;
+  padding: 16px 18px 32px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2375,4 +2378,13 @@ input.error {
 
 .lc-save-btn:active {
   transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .lc-modal:focus-within {
+    max-height: 50vh;
+  }
+  .modal-sheet:focus-within {
+    max-height: 50vh;
+  }
 }

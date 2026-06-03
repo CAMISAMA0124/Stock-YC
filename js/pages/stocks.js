@@ -792,10 +792,11 @@ YC.stocks = (() => {
         `;
       }
 
-      // 1. Render Chart
+      // 1. Render Chart (resetPan so each new stock starts at latest)
       YC.charting.renderPriceChart('detail-chart-container', latestMkt.history || [], {
         ma50: true, ma200: true,
-        color: latestMkt.changePct >= 0 ? 'var(--pos)' : 'var(--neg)'
+        color: latestMkt.changePct >= 0 ? 'var(--pos)' : 'var(--neg)',
+        resetPan: true
       });
 
       // 2. Heavy Indicators Calculation & Update
