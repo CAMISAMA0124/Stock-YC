@@ -610,7 +610,7 @@ YC.stocks = (() => {
       </div>
 
       <!-- Professional Chart Container -->
-      <div id="detail-chart-container" style="width:100%;height:200px;background:rgba(0,0,0,0.2);border-radius:12px;margin-bottom:16px;overflow:hidden">
+      <div id="detail-chart-container" style="width:100%;height:200px;background:rgba(0,0,0,0.2);border-radius:12px;margin-bottom:16px;overflow:hidden;touch-action:none;">
         <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-3);font-size:13px">
           📈 正在載入圖表數據...
         </div>

@@ -119,7 +119,8 @@ YC.charting = (() => {
             const canScroll    = totalLen > VIEW_SIZE;
             const scrollBarW   = chartW;
             const thumbW       = Math.max(20, Math.round((VIEW_SIZE / totalLen) * scrollBarW));
-            const thumbX       = padding.l + Math.round(((totalLen - endIdx) / Math.max(1, totalLen - VIEW_SIZE)) * (scrollBarW - thumbW));
+            const maxOffset    = Math.max(0, totalLen - VIEW_SIZE);
+            const thumbX       = padding.l + (maxOffset > 0 ? Math.round(((maxOffset - state.offset) / maxOffset) * (scrollBarW - thumbW)) : 0);
             const scrollBarY   = height - 10;
 
             let svg = `
@@ -198,6 +199,7 @@ YC.charting = (() => {
         let lastTime = null;
         let velocity = 0; // px per ms
         let momentumFrameId = null;
+        let isScrollBarActive = false;
 
         const pxPerCandle = () => {
             const w = container.clientWidth || 340;
@@ -214,13 +216,22 @@ YC.charting = (() => {
                 momentumFrameId = null;
             }
 
+            const rect = container.getBoundingClientRect();
+            const clientY = e.clientY ?? (e.touches && e.touches[0].clientY);
+            const clientX = e.clientX ?? (e.touches && e.touches[0].clientX);
+            const startY = clientY - rect.top;
+
+            // Check if touch/click is in the bottom scrollbar area (25px height zone)
+            const chartH = state.options.height || 180;
+            isScrollBarActive = (startY >= chartH - 25);
+
             isDragging    = true;
-            dragStartX    = e.clientX ?? (e.touches && e.touches[0].clientX);
+            dragStartX    = clientX;
             dragStartOff  = state.offset;
             lastX         = dragStartX;
             lastTime      = performance.now();
             velocity      = 0;
-            container.style.cursor = 'grabbing';
+            container.style.cursor = isScrollBarActive ? 'ew-resize' : 'grabbing';
 
             if (e.type === 'mousedown') {
                 window.addEventListener('mousemove', onPointerMove);
@@ -263,9 +274,24 @@ YC.charting = (() => {
         function updateDrag(curX) {
             const maxOffset = Math.max(0, state.history.length - VIEW_SIZE);
             const dx       = curX - dragStartX; // Correct direction: curX - dragStartX
-            // Added sensitivity multiplier of 1.3 to make standard dragging feel more responsive
-            const candleDx = Math.round((dx * 1.3) / pxPerCandle());
-            const targetOffset = Math.max(0, Math.min(maxOffset, dragStartOff + candleDx));
+            
+            let targetOffset;
+            if (isScrollBarActive) {
+                // Scrollbar dragging: dragging right (dx > 0) moves thumb right (newer data), so offset decreases
+                const w = container.clientWidth || 340;
+                const chartW = w - 45 - 10;
+                const scrollBarW = chartW;
+                const thumbW = Math.max(20, Math.round((VIEW_SIZE / state.history.length) * scrollBarW));
+                const scrollRange = scrollBarW - thumbW;
+                
+                const offsetDelta = scrollRange > 0 ? (dx * maxOffset) / scrollRange : 0;
+                // Dragging right decreases offset; dragging left increases offset
+                targetOffset = Math.max(0, Math.min(maxOffset, Math.round(dragStartOff - offsetDelta)));
+            } else {
+                // Standard chart dragging (sensitivity multiplier 1.3)
+                const candleDx = Math.round((dx * 1.3) / pxPerCandle());
+                targetOffset = Math.max(0, Math.min(maxOffset, dragStartOff + candleDx));
+            }
             
             if (state.offset !== targetOffset) {
                 state.offset = targetOffset;
@@ -340,9 +366,9 @@ YC.charting = (() => {
             window.removeEventListener('touchmove',  onTouchMove);
             window.removeEventListener('touchend',   onPointerUp);
 
-            // Apply momentum on release if velocity is high enough
+            // Apply momentum on release if velocity is high enough and it wasn't a scrollbar drag
             const minVelocity = 0.15; // px/ms
-            if (Math.abs(velocity) > minVelocity) {
+            if (!isScrollBarActive && Math.abs(velocity) > minVelocity) {
                 startMomentum();
             }
         }
