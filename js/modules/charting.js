@@ -192,7 +192,6 @@ YC.charting = (() => {
         let dragStartX    = null;
         let dragStartOff  = null;
         let isDragging    = false;
-        let animationFrameId = null;
 
         // For momentum/inertia
         let lastX = null;
@@ -200,6 +199,10 @@ YC.charting = (() => {
         let velocity = 0; // px per ms
         let momentumFrameId = null;
         let isScrollBarActive = false;
+
+        // Decoupled tick for rendering performance (silky smooth on iOS)
+        let pendingX = null;
+        let dragFrameId = null;
 
         const pxPerCandle = () => {
             const w = container.clientWidth || 340;
@@ -210,10 +213,14 @@ YC.charting = (() => {
         function onPointerDown(e) {
             if (e.type === 'mousedown' && e.button !== 0) return;
             
-            // Cancel any active momentum scrolling
+            // Cancel active animations
             if (momentumFrameId) {
                 cancelAnimationFrame(momentumFrameId);
                 momentumFrameId = null;
+            }
+            if (dragFrameId) {
+                cancelAnimationFrame(dragFrameId);
+                dragFrameId = null;
             }
 
             const rect = container.getBoundingClientRect();
@@ -231,6 +238,7 @@ YC.charting = (() => {
             lastX         = dragStartX;
             lastTime      = performance.now();
             velocity      = 0;
+            pendingX      = null;
             container.style.cursor = isScrollBarActive ? 'ew-resize' : 'grabbing';
 
             if (e.type === 'mousedown') {
@@ -246,8 +254,11 @@ YC.charting = (() => {
             if (!isDragging) return;
             const curX = e.clientX;
             if (curX == null) return;
-            trackVelocity(curX);
-            updateDrag(curX);
+            
+            pendingX = curX;
+            if (!dragFrameId) {
+                dragFrameId = requestAnimationFrame(dragTick);
+            }
         }
 
         function onTouchMove(e) {
@@ -255,8 +266,27 @@ YC.charting = (() => {
             const curX = e.touches && e.touches[0].clientX;
             if (curX == null) return;
             e.preventDefault(); // Prevent scrolling page when dragging chart
+            
+            pendingX = curX;
+            if (!dragFrameId) {
+                dragFrameId = requestAnimationFrame(dragTick);
+            }
+        }
+
+        function dragTick() {
+            if (!isDragging || pendingX == null) {
+                dragFrameId = null;
+                return;
+            }
+
+            const curX = pendingX;
+            pendingX = null; // Clear so next move can queue another frame
+
             trackVelocity(curX);
             updateDrag(curX);
+
+            // Keep ticking if we still have active drag
+            dragFrameId = requestAnimationFrame(dragTick);
         }
 
         function trackVelocity(curX) {
@@ -273,11 +303,10 @@ YC.charting = (() => {
 
         function updateDrag(curX) {
             const maxOffset = Math.max(0, state.history.length - VIEW_SIZE);
-            const dx       = curX - dragStartX; // Correct direction: curX - dragStartX
+            const dx       = curX - dragStartX; 
             
             let targetOffset;
             if (isScrollBarActive) {
-                // Scrollbar dragging: dragging right (dx > 0) moves thumb right (newer data), so offset decreases
                 const w = container.clientWidth || 340;
                 const chartW = w - 45 - 10;
                 const scrollBarW = chartW;
@@ -285,23 +314,17 @@ YC.charting = (() => {
                 const scrollRange = scrollBarW - thumbW;
                 
                 const offsetDelta = scrollRange > 0 ? (dx * maxOffset) / scrollRange : 0;
-                // Dragging right decreases offset; dragging left increases offset
                 targetOffset = Math.max(0, Math.min(maxOffset, Math.round(dragStartOff - offsetDelta)));
             } else {
-                // Standard chart dragging (sensitivity multiplier 1.3)
                 const candleDx = Math.round((dx * 1.3) / pxPerCandle());
                 targetOffset = Math.max(0, Math.min(maxOffset, dragStartOff + candleDx));
             }
             
             if (state.offset !== targetOffset) {
                 state.offset = targetOffset;
-                if (!animationFrameId) {
-                    animationFrameId = requestAnimationFrame(() => {
-                        if (document.body.contains(container)) {
-                            _renderChart(container, containerId, state.history, state.options, state, VIEW_SIZE);
-                        }
-                        animationFrameId = null;
-                    });
+                // Re-render immediately as this runs inside dragTick (requestAnimationFrame)
+                if (document.body.contains(container)) {
+                    _renderChart(container, containerId, state.history, state.options, state, VIEW_SIZE);
                 }
             }
         }
@@ -321,7 +344,6 @@ YC.charting = (() => {
                 const dt = timestamp - lastFrameTime;
                 lastFrameTime = timestamp;
                 
-                // Scale friction by dt to keep rate consistent across different refresh rates (e.g. 60Hz/120Hz)
                 const frictionFactor = Math.pow(friction, dt / 16.67);
                 velocity *= frictionFactor;
                 
@@ -331,7 +353,6 @@ YC.charting = (() => {
                 }
                 
                 const dx = velocity * dt;
-                // Apply sensitivity multiplier to momentum too
                 const candleDx = (dx * 1.3) / pxPerCandle();
                 
                 currentOffset += candleDx;
@@ -356,9 +377,10 @@ YC.charting = (() => {
         function onPointerUp() {
             isDragging = false;
             container.style.cursor = 'grab';
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
+            
+            if (dragFrameId) {
+                cancelAnimationFrame(dragFrameId);
+                dragFrameId = null;
             }
             
             window.removeEventListener('mousemove', onPointerMove);
