@@ -1638,6 +1638,10 @@ body {
   animation: chart-fade-in 0.8s ease-out forwards;
 }
 
+.YC-chart-svg.no-anim {
+  animation: none !important;
+}
+
 @keyframes chart-fade-in {
   from {
     opacity: 0;

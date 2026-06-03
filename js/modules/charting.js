@@ -28,12 +28,14 @@ YC.charting = (() => {
         const VIEW_SIZE = 90; // visible candles
         if (!_chartState[containerId]) {
             _chartState[containerId] = {
-                offset: 0
+                offset: 0,
+                isFirstRender: true
             };
         }
         const state = _chartState[containerId];
         if (options.resetPan) {
             state.offset = 0;
+            state.isFirstRender = true;
         }
         state.history = history;
         state.options = options;
@@ -121,7 +123,7 @@ YC.charting = (() => {
             const scrollBarY   = height - 10;
 
             let svg = `
-            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="YC-chart-svg" style="touch-action:none;user-select:none;">
+            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="YC-chart-svg ${state.isFirstRender ? '' : 'no-anim'}" style="touch-action:none;user-select:none;">
                 <defs>
                     <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stop-color="${mainColor}" stop-opacity="0.2"/>
@@ -178,6 +180,7 @@ YC.charting = (() => {
             </svg>`;
 
             container.innerHTML = svg;
+            state.isFirstRender = false;
         } catch (e) {
             console.error('Chart render error:', e);
             container.innerHTML = `<div class="chart-empty" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-3);font-size:13px">圖表渲染錯誤</div>`;
@@ -188,6 +191,7 @@ YC.charting = (() => {
         let dragStartX    = null;
         let dragStartOff  = null;
         let isDragging    = false;
+        let animationFrameId = null;
 
         const pxPerCandle = () => {
             const w = container.clientWidth || 340;
@@ -229,16 +233,28 @@ YC.charting = (() => {
 
         function updateDrag(curX) {
             const maxOffset = Math.max(0, state.history.length - VIEW_SIZE);
-            const dx       = dragStartX - curX;
+            const dx       = curX - dragStartX; // Correct direction: curX - dragStartX
             const candleDx = Math.round(dx / pxPerCandle());
-            state.offset   = Math.max(0, Math.min(maxOffset, dragStartOff + candleDx));
+            const targetOffset = Math.max(0, Math.min(maxOffset, dragStartOff + candleDx));
             
-            _renderChart(container, containerId, state.history, state.options, state, VIEW_SIZE);
+            if (state.offset !== targetOffset) {
+                state.offset = targetOffset;
+                if (!animationFrameId) {
+                    animationFrameId = requestAnimationFrame(() => {
+                        _renderChart(container, containerId, state.history, state.options, state, VIEW_SIZE);
+                        animationFrameId = null;
+                    });
+                }
+            }
         }
 
         function onPointerUp() {
             isDragging = false;
             container.style.cursor = 'grab';
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
             
             window.removeEventListener('mousemove', onPointerMove);
             window.removeEventListener('mouseup',   onPointerUp);
